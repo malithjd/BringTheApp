@@ -69,3 +69,25 @@ export async function parseDocumentBase64(base64Data) {
     body: JSON.stringify({ base64: base64Data }),
   });
 }
+
+/**
+ * Upload multiple document files for OCR extraction.
+ * @param {Array<File|Blob>} files - Array of image/PDF files to process
+ * @returns {Promise<Object>} The extracted fields and raw text
+ */
+export async function extractDocuments(files) {
+  const formData = new FormData();
+  files.forEach((file) => {
+    formData.append('documents', file);
+  });
+
+  const res = await fetch(`${API_BASE}/ocr/extract`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || 'Document extraction failed');
+  }
+  return res.json();
+}
