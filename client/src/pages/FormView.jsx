@@ -486,13 +486,19 @@ export default function FormView({ initialData, onAnalysisComplete }) {
               {form.aprAuto && <span className="ml-1 text-xs bg-accent/20 text-accent px-1.5 py-0.5 rounded">Auto</span>}
             </label>
             <input
-              type="number"
+              type="text"
               inputMode="decimal"
-              step="0.1"
-              value={form.apr}
+              value={form.aprDisplay ?? form.apr}
+              onFocus={() => set('aprDisplay', String(form.apr))}
               onChange={(e) => {
-                set('apr', parseFloat(e.target.value) || 0);
+                const raw = e.target.value.replace(/[^0-9.]/g, '');
+                set('aprDisplay', raw);
+                const num = parseFloat(raw);
+                if (!isNaN(num)) set('apr', num);
                 set('aprAuto', false);
+              }}
+              onBlur={() => {
+                set('aprDisplay', undefined);
               }}
               className="w-full bg-surface2 text-text rounded-lg px-3 py-3 text-[16px] border border-border focus:border-accent focus:outline-none"
             />

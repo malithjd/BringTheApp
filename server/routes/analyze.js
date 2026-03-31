@@ -155,18 +155,24 @@ function scoreDeal(deal, market, stateData, taxInfo) {
     totalScore += 15;
   }
 
-  // Factor 2: APR Fairness (20 pts max)
-  const fairApr = FAIR_APR[deal.creditTier] || FAIR_APR.good;
-  const aprDiff = deal.apr - fairApr;
-  let aprPts;
-  if (deal.apr > 20) aprPts = -10;
-  else if (aprDiff <= 0) aprPts = 20;
-  else if (aprDiff <= 2) aprPts = 15;
-  else if (aprDiff <= 5) aprPts = 8;
-  else aprPts = 0;
+  // Factor 2: APR Fairness (20 pts max) — skip for cash deals
+  const isCashDeal = !deal.term || deal.term === 0;
+  if (!isCashDeal) {
+    const fairApr = FAIR_APR[deal.creditTier] || FAIR_APR.good;
+    const aprDiff = deal.apr - fairApr;
+    let aprPts;
+    if (deal.apr > 20) aprPts = -10;
+    else if (aprDiff <= 0) aprPts = 20;
+    else if (aprDiff <= 2) aprPts = 15;
+    else if (aprDiff <= 5) aprPts = 8;
+    else aprPts = 0;
 
-  factors.push({ name: 'APR Fairness', points: aprPts, max: 20, apr: deal.apr, fairApr });
-  totalScore += aprPts;
+    factors.push({ name: 'APR Fairness', points: aprPts, max: 20, apr: deal.apr, fairApr });
+    totalScore += aprPts;
+  } else {
+    factors.push({ name: 'APR Fairness', points: 20, max: 20, note: 'Cash deal — no financing' });
+    totalScore += 20;
+  }
 
   // Factor 3: Fees vs Norms (15 pts max)
   const docFee = deal.docFee || 0;
@@ -199,16 +205,21 @@ function scoreDeal(deal, market, stateData, taxInfo) {
   factors.push({ name: 'Add-ons', points: addonPts, max: 15, totalAddons });
   totalScore += addonPts;
 
-  // Factor 5: Loan Term (8 pts max)
-  let termPts;
-  if (deal.term <= 36) termPts = 8;
-  else if (deal.term <= 48) termPts = 7;
-  else if (deal.term <= 60) termPts = 5;
-  else if (deal.term <= 72) termPts = 2;
-  else termPts = 0;
+  // Factor 5: Loan Term (8 pts max) — skip for cash deals
+  if (!isCashDeal) {
+    let termPts;
+    if (deal.term <= 36) termPts = 8;
+    else if (deal.term <= 48) termPts = 7;
+    else if (deal.term <= 60) termPts = 5;
+    else if (deal.term <= 72) termPts = 2;
+    else termPts = 0;
 
-  factors.push({ name: 'Loan Term', points: termPts, max: 8, term: deal.term });
-  totalScore += termPts;
+    factors.push({ name: 'Loan Term', points: termPts, max: 8, term: deal.term });
+    totalScore += termPts;
+  } else {
+    factors.push({ name: 'Loan Term', points: 8, max: 8, note: 'Cash deal — no loan' });
+    totalScore += 8;
+  }
 
   // Factor 6: Down Payment / Equity (7 pts max)
   const equity = (deal.down || 0) + Math.max(0, (deal.tradeIn || 0) - (deal.tradeOwed || 0));
@@ -474,9 +485,9 @@ router.post('/', async (req, res) => {
       docFee, regFee, titleFee, addons,
     } = req.body;
 
-    // Validate required fields
-    if (!price || !zip || !year || !make || !model || !condition || !term) {
-      return res.status(400).json({ error: 'Missing required fields: price, zip, year, make, model, condition, term' });
+    // Validate required fields (financing is optional — cash deals have no term/apr)
+    if (!price || !zip || !year || !make || !model || !condition) {
+      return res.status(400).json({ error: 'Missing required fields: price, zip, year, make, model, condition' });
     }
 
     // Get state from ZIP
@@ -518,10 +529,11 @@ router.post('/', async (req, res) => {
     const negativeEquity = Math.max(0, (tradeOwed || 0) - (tradeIn || 0));
     const loanAmount = Math.max(0, totalCost - equity + negativeEquity);
 
-    // Payment
-    const monthlyPayment = calculatePayment(loanAmount, apr || 6, term);
-    const totalPaid = Math.round(monthlyPayment * term * 100) / 100;
-    const totalInterest = Math.round((totalPaid - loanAmount) * 100) / 100;
+    // Payment (skip for cash deals)
+    const effectiveTerm = parseInt(term) || 0;
+    const monthlyPayment = effectiveTerm > 0 ? calculatePayment(loanAmount, apr || 6, effectiveTerm) : 0;
+    const totalPaid = effectiveTerm > 0 ? Math.round(monthlyPayment * effectiveTerm * 100) / 100 : Math.round(totalCost * 100) / 100;
+    const totalInterest = effectiveTerm > 0 ? Math.round((totalPaid - loanAmount) * 100) / 100 : 0;
 
     // Market estimation
     const market = estimateMarketValue(make, model, parseInt(year), trim, condition, mileage);
@@ -533,8 +545,8 @@ router.post('/', async (req, res) => {
       down: parseFloat(down) || 0,
       tradeIn: parseFloat(tradeIn) || 0,
       tradeOwed: parseFloat(tradeOwed) || 0,
-      apr: parseFloat(apr) || 6,
-      term: parseInt(term),
+      apr: parseFloat(apr) || 0,
+      term: parseInt(term) || 0,
       docFee: totalDocFee,
       regFee: totalRegFee,
       titleFee: totalTitleFee,
