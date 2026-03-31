@@ -61,6 +61,7 @@ export default function FormView({ initialData, onAnalysisComplete }) {
   const [stateInfo, setStateInfo] = useState(null);
   const [feeInfo, setFeeInfo] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [customAddonName, setCustomAddonName] = useState(null);
   const [errors, setErrors] = useState({});
   const [expandedSections, setExpandedSections] = useState({
     vehicle: true, deal: true, financing: true, addons: false,
@@ -528,7 +529,9 @@ export default function FormView({ initialData, onAnalysisComplete }) {
                   </svg>
                 )}
               </button>
-              <span className={`flex-1 text-sm ${addon.enabled ? 'text-text' : 'text-text2'}`}>{addon.name}</span>
+              <span className={`flex-1 text-sm ${addon.enabled ? 'text-text' : 'text-text2'}`}>
+                {addon.name || <span className="text-text2 italic">Unnamed</span>}
+              </span>
               {addon.enabled && (
                 <div className="w-28">
                   <MoneyInput
@@ -542,38 +545,66 @@ export default function FormView({ initialData, onAnalysisComplete }) {
                   />
                 </div>
               )}
+              {addon.custom && (
+                <button
+                  onClick={() => {
+                    set('addons', form.addons.filter((_, idx) => idx !== i));
+                  }}
+                  className="text-text2 hover:text-red text-lg leading-none px-1 transition-colors"
+                  title="Remove"
+                >
+                  &times;
+                </button>
+              )}
             </div>
           ))}
         </div>
 
-        <button
-          onClick={() => {
-            set('addons', [...form.addons, { name: '', price: '', enabled: true, custom: true }]);
-          }}
-          className="mt-3 text-sm text-accent hover:text-accent-hover font-medium"
-        >
-          + Add custom item
-        </button>
-
-        {/* Custom addon name input for newly added ones */}
-        {form.addons.filter(a => a.custom && a.enabled).map((addon, idx) => {
-          const realIndex = form.addons.indexOf(addon);
-          return (
-            <div key={`custom-${idx}`} className="mt-2 flex gap-2">
-              <input
-                type="text"
-                placeholder="Add-on name"
-                value={addon.name}
-                onChange={(e) => {
-                  const updated = [...form.addons];
-                  updated[realIndex] = { ...updated[realIndex], name: e.target.value };
-                  set('addons', updated);
-                }}
-                className="flex-1 bg-surface2 text-text rounded-lg px-3 py-2 text-sm border border-border focus:border-accent focus:outline-none"
-              />
-            </div>
-          );
-        })}
+        {/* Add custom item: inline name input with Add button */}
+        {customAddonName !== null ? (
+          <div className="mt-3 flex gap-2">
+            <input
+              type="text"
+              placeholder="Add-on name (e.g. Tyre Disposal Fee)"
+              value={customAddonName}
+              autoFocus
+              onChange={(e) => setCustomAddonName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && customAddonName.trim()) {
+                  set('addons', [...form.addons, { name: customAddonName.trim(), price: '', enabled: true, custom: true }]);
+                  setCustomAddonName(null);
+                } else if (e.key === 'Escape') {
+                  setCustomAddonName(null);
+                }
+              }}
+              className="flex-1 bg-surface2 text-text rounded-lg px-3 py-2 text-sm border border-accent focus:outline-none"
+            />
+            <button
+              onClick={() => {
+                if (customAddonName.trim()) {
+                  set('addons', [...form.addons, { name: customAddonName.trim(), price: '', enabled: true, custom: true }]);
+                  setCustomAddonName(null);
+                }
+              }}
+              className="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              Add
+            </button>
+            <button
+              onClick={() => setCustomAddonName(null)}
+              className="px-3 py-2 text-text2 hover:text-text text-sm transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setCustomAddonName('')}
+            className="mt-3 text-sm text-accent hover:text-accent-hover font-medium"
+          >
+            + Add custom item
+          </button>
+        )}
       </Section>
 
       {/* Submit */}
