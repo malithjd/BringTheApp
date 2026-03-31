@@ -66,7 +66,7 @@ export default function FormView({ initialData, onAnalysisComplete }) {
   const [expandedSections, setExpandedSections] = useState({
     vehicle: true, deal: true, financing: true, addons: false,
   });
-  const [ocrRawText, setOcrRawText] = useState(null);
+  const [ocrFilled, setOcrFilled] = useState(false);
 
   const set = useCallback((field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -155,8 +155,8 @@ export default function FormView({ initialData, onAnalysisComplete }) {
   };
 
   // Handle OCR extracted fields
-  const handleOcrFields = (fields, rawText) => {
-    setOcrRawText(rawText);
+  const handleOcrFields = (fields) => {
+    setOcrFilled(true);
     const updates = { ...form };
     if (fields.year) updates.year = String(fields.year);
     if (fields.make) updates.make = fields.make;
@@ -271,13 +271,17 @@ export default function FormView({ initialData, onAnalysisComplete }) {
       <div className="text-center mb-6">
         <h1 className="text-2xl font-bold text-text mb-1">Deal Details</h1>
         <p className="text-text2 text-sm">
-          {ocrRawText ? 'Review extracted details — correct any errors' : 'Enter your deal numbers'}
+          {ocrFilled ? 'Review extracted details — correct any errors' : 'Enter your deal numbers'}
         </p>
       </div>
 
-      {ocrRawText && (
-        <div className="bg-green/10 border border-green/30 rounded-xl p-3 mb-4 text-sm text-green">
-          Fields auto-filled from your document. Review and correct any errors below.
+      {ocrFilled && (
+        <div className="bg-amber/10 border border-amber/30 rounded-xl p-4 mb-4">
+          <p className="text-amber font-semibold text-sm flex items-center gap-2">
+            <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.168 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" /></svg>
+            Please double-check all numbers before analyzing
+          </p>
+          <p className="text-text2 text-xs mt-1">Fields were auto-filled from your documents. Verify prices, fees, APR, and loan term are correct.</p>
         </div>
       )}
 

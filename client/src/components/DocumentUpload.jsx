@@ -103,7 +103,7 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
       const result = await extractDocuments(blobs);
 
       if (result.success && result.fields && Object.keys(result.fields).length > 0) {
-        onFieldsExtracted(result.fields, result.rawText);
+        onFieldsExtracted(result.fields);
       } else {
         setError(
           result.message ||
@@ -128,7 +128,7 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
     try {
       const result = await extractDocuments(retryFiles);
       if (result.success && result.fields && Object.keys(result.fields).length > 0) {
-        onFieldsExtracted(result.fields, result.rawText);
+        onFieldsExtracted(result.fields);
       } else {
         setError(
           result.message ||
@@ -302,10 +302,10 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
         )}
 
         {/* Manual entry link */}
-        <div className="text-center">
+        <div className="text-center pt-1">
           <button
             onClick={onSkip}
-            className="text-text2 hover:text-text text-sm transition-colors"
+            className="text-accent/80 hover:text-accent text-sm font-medium transition-colors underline underline-offset-2 decoration-accent/30 hover:decoration-accent/60"
           >
             or enter deal details manually
           </button>
@@ -432,10 +432,10 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
       )}
 
       {/* Manual entry link */}
-      <div className="text-center">
+      <div className="text-center pt-1">
         <button
           onClick={onSkip}
-          className="text-text2 hover:text-text text-sm transition-colors"
+          className="text-accent/80 hover:text-accent text-sm font-medium transition-colors underline underline-offset-2 decoration-accent/30 hover:decoration-accent/60"
         >
           or enter deal details manually
         </button>

@@ -10,9 +10,11 @@ import vehicleRoutes from './routes/vehicle.js';
 import analyzeRoutes from './routes/analyze.js';
 import ocrRoutes from './routes/ocr.js';
 
-dotenv.config();
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Load .env from server/ directory (for local dev)
+dotenv.config({ path: path.join(__dirname, '.env') });
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -32,16 +34,16 @@ app.use('/api/vehicle', vehicleRoutes);
 app.use('/api/analyze', analyzeRoutes);
 app.use('/api/ocr', ocrRoutes);
 
-// Health check
-app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+// Health check (used by UptimeRobot to prevent Render free tier sleep)
+app.get('/api/health', (_req, res) => res.json({ status: 'ok', ts: Date.now() }));
 
-// SPA fallback in production
+// SPA fallback in production (middleware, Express 5 compatible)
 if (process.env.NODE_ENV === 'production') {
-  app.get('*', (req, res) => {
+  app.use((_req, res) => {
     res.sendFile(path.join(__dirname, '../client/dist/index.html'));
   });
 }
 
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on http://localhost:${PORT} (${process.env.NODE_ENV || 'development'})`);
 });

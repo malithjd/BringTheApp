@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import multer from 'multer';
-import Anthropic from '@anthropic-ai/sdk';
 import sharp from 'sharp';
 
 const router = Router();
@@ -42,9 +41,202 @@ async function preprocessImage(buffer) {
 }
 
 // ---------------------------------------------------------------------------
-// Tool schema – extract_deal_data
+// System prompt (shared across all providers)
 // ---------------------------------------------------------------------------
-const EXTRACT_DEAL_DATA_TOOL = {
+const SYSTEM_PROMPT = `You are an expert automotive deal document analyst. You will receive one or more images of automotive deal documents.
+
+STEP 1 – IDENTIFY EACH PAGE
+Classify each page as one of: buyer's order / purchase agreement, retail installment contract (finance agreement), window sticker (Monroney label), F&I menu, or other. Note each in raw_text_summary.
+
+STEP 2 – EXTRACT VEHICLE INFO (look across ALL pages)
+- year, make, model, trim (e.g., "XLE AWD", "SE", "Limited") — trim is CRITICAL, look on the window sticker title line or buyer's order vehicle description
+- VIN (exactly 17 chars, uppercase, no I/O/Q)
+- condition: "new" or "used"
+- stock_number, exterior_color, interior_color, mileage
+
+STEP 3 – EXTRACT PRICING (from buyer's order / purchase agreement)
+- selling_price: the VEHICLE PRICE or SELLING PRICE line (NOT the total with fees)
+- msrp: from the window sticker "Total Suggested Retail Price" or "Total MSRP"
+- rebates_incentives: any REBATE line item (as a positive number)
+- doc_fee: documentation/processing fee
+- sales_tax: the SALES TAX amount
+- registration_fee: registration/plate fees
+- title_fee: title fee if separate
+- destination_charge: delivery/destination/handling charge from window sticker
+- total_price: the final TOTAL or AMOUNT DUE ON DELIVERY
+
+STEP 4 – EXTRACT FINANCING (PREFER the retail installment contract / finance agreement over buyer's order)
+- amount_financed: the "Amount Financed" in the Truth-in-Lending box
+- apr: the ANNUAL PERCENTAGE RATE as a number (e.g., 4.99 not 0.0499)
+- term_months: the NUMBER OF PAYMENTS (e.g., 72, 60, 48) — this is the loan term
+- monthly_payment: the "Amount of Payments" per month
+- down_payment: look for "Total Sale Price minus Amount Financed minus Finance Charge" OR "down payment" OR "cash down" on buyer's order
+- finance_charge: the total finance/interest charge
+- lender: name of the financing bank/lender if shown
+
+STEP 5 – EXTRACT TRADE-IN (if present)
+- trade-in year, make, model, VIN
+- gross_trade_value, payoff_amount, net_trade_value
+
+STEP 6 – EXTRACT ADD-ONS
+Factory options (from window sticker "Installed Packages & Accessories"):
+- Items marked FIO (Factory Installed Option) or PIO (Port Installed Option) with their description, option code, and price
+Dealer add-ons (installed by dealer after factory):
+- nitrogen tire fill, door edge guards, wheel locks, window tint, appearance packages, etc.
+Aftermarket/F&I products (sold in Finance office):
+- GAP insurance, extended warranty, paint/fabric protection, tire & wheel, LoJack, maintenance plans, etc. with type, provider, price, term
+
+STEP 7 – CHECK FOR CONFLICTS
+If the same data point appears with DIFFERENT values on different pages, record both in the conflicts array.
+
+CRITICAL RULES:
+- Return null for any field you CANNOT clearly read. NEVER guess or hallucinate.
+- Dollar amounts must be plain numbers (no $ sign, no commas): 34005.35 not "$34,005.35"
+- APR is a percentage number: 4.99 not 0.0499
+- Extract EVERY field you can see — partial extraction is unacceptable. Look carefully at every line item on every page.
+- The "Number of Payments" on a finance agreement IS the loan term in months.
+- Down payment might be labeled "Total Sale Price" minus "Amount Financed" on the Truth-in-Lending disclosure, or explicitly on the buyer's order.`;
+
+// ---------------------------------------------------------------------------
+// Extraction JSON schema (Gemini-compatible – uses nullable instead of union types)
+// ---------------------------------------------------------------------------
+const EXTRACTION_SCHEMA = {
+  type: 'object',
+  properties: {
+    vehicle: {
+      type: 'object',
+      properties: {
+        year: { type: 'string', nullable: true },
+        make: { type: 'string', nullable: true },
+        model: { type: 'string', nullable: true },
+        trim: { type: 'string', nullable: true },
+        vin: { type: 'string', nullable: true },
+        stock_number: { type: 'string', nullable: true },
+        exterior_color: { type: 'string', nullable: true },
+        interior_color: { type: 'string', nullable: true },
+        mileage: { type: 'number', nullable: true },
+        condition: { type: 'string', nullable: true, enum: ['new', 'used'] },
+      },
+      required: [
+        'year', 'make', 'model', 'trim', 'vin', 'stock_number',
+        'exterior_color', 'interior_color', 'mileage', 'condition',
+      ],
+    },
+    pricing: {
+      type: 'object',
+      properties: {
+        msrp: { type: 'number', nullable: true },
+        selling_price: { type: 'number', nullable: true },
+        rebates_incentives: { type: 'number', nullable: true },
+        doc_fee: { type: 'number', nullable: true },
+        sales_tax: { type: 'number', nullable: true },
+        title_fee: { type: 'number', nullable: true },
+        registration_fee: { type: 'number', nullable: true },
+        total_price: { type: 'number', nullable: true },
+        destination_charge: { type: 'number', nullable: true },
+      },
+      required: [
+        'msrp', 'selling_price', 'rebates_incentives', 'doc_fee',
+        'sales_tax', 'title_fee', 'registration_fee', 'total_price',
+        'destination_charge',
+      ],
+    },
+    trade_in: {
+      type: 'object',
+      nullable: true,
+      properties: {
+        year: { type: 'string', nullable: true },
+        make: { type: 'string', nullable: true },
+        model: { type: 'string', nullable: true },
+        vin: { type: 'string', nullable: true },
+        gross_trade_value: { type: 'number', nullable: true },
+        payoff_amount: { type: 'number', nullable: true },
+        net_trade_value: { type: 'number', nullable: true },
+      },
+      required: [
+        'year', 'make', 'model', 'vin', 'gross_trade_value',
+        'payoff_amount', 'net_trade_value',
+      ],
+    },
+    financing: {
+      type: 'object',
+      nullable: true,
+      properties: {
+        amount_financed: { type: 'number', nullable: true },
+        apr: { type: 'number', nullable: true },
+        term_months: { type: 'number', nullable: true },
+        monthly_payment: { type: 'number', nullable: true },
+        lender: { type: 'string', nullable: true },
+        down_payment: { type: 'number', nullable: true },
+        finance_charge: { type: 'number', nullable: true },
+      },
+      required: [
+        'amount_financed', 'apr', 'term_months', 'monthly_payment',
+        'lender', 'down_payment', 'finance_charge',
+      ],
+    },
+    factory_options: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          code: { type: 'string', nullable: true },
+          description: { type: 'string' },
+          price: { type: 'number', nullable: true },
+        },
+        required: ['description'],
+      },
+    },
+    dealer_addons: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          description: { type: 'string' },
+          price: { type: 'number', nullable: true },
+        },
+        required: ['description'],
+      },
+    },
+    aftermarket_products: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          type: { type: 'string' },
+          provider: { type: 'string', nullable: true },
+          price: { type: 'number', nullable: true },
+          term_months: { type: 'number', nullable: true },
+        },
+        required: ['type'],
+      },
+    },
+    raw_text_summary: { type: 'string' },
+    confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+    conflicts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          field: { type: 'string' },
+          values: { type: 'array', items: { type: 'string' } },
+          sources: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['field', 'values', 'sources'],
+      },
+    },
+  },
+  required: [
+    'vehicle', 'pricing', 'trade_in', 'financing',
+    'factory_options', 'dealer_addons', 'aftermarket_products',
+    'raw_text_summary', 'confidence', 'conflicts',
+  ],
+};
+
+// ---------------------------------------------------------------------------
+// Claude tool_use schema (uses type arrays for nullable)
+// ---------------------------------------------------------------------------
+const CLAUDE_TOOL_SCHEMA = {
   name: 'extract_deal_data',
   description:
     'Extract structured deal data from automotive deal documents. Call this tool exactly once with all extracted information.',
@@ -63,10 +255,7 @@ const EXTRACT_DEAL_DATA_TOOL = {
           exterior_color: { type: ['string', 'null'] },
           interior_color: { type: ['string', 'null'] },
           mileage: { type: ['number', 'null'] },
-          condition: {
-            type: ['string', 'null'],
-            enum: ['new', 'used', null],
-          },
+          condition: { type: ['string', 'null'], enum: ['new', 'used', null] },
         },
         required: [
           'year', 'make', 'model', 'trim', 'vin', 'stock_number',
@@ -184,36 +373,208 @@ const EXTRACT_DEAL_DATA_TOOL = {
 };
 
 // ---------------------------------------------------------------------------
-// System prompt
+// Provider: Google Gemini (free tier – default)
 // ---------------------------------------------------------------------------
-const SYSTEM_PROMPT = `You are an expert automotive deal document analyst. You will receive one or more images of automotive deal documents — these may include buyer's orders, retail installment contracts (finance agreements), window stickers (Monroney stickers), credit applications, trade-in appraisals, or F&I product menus.
+async function extractWithGemini(processedImages) {
+  const apiKey = process.env.GOOGLE_AI_KEY;
+  if (!apiKey) {
+    throw new Error('GOOGLE_AI_KEY is not configured. Get a free key at https://aistudio.google.com/apikey');
+  }
 
-Your job is to extract every piece of structured deal data visible across ALL pages and return it via the extract_deal_data tool. Follow these rules precisely:
+  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
-DOCUMENT IDENTIFICATION
-- First identify each document page type (buyer's order, finance agreement, window sticker, etc.) and note it in your raw_text_summary.
-- Different pages may overlap in the data they contain. Cross-reference them.
+  // Build parts array: text labels + inline images
+  const parts = [];
+  for (let i = 0; i < processedImages.length; i++) {
+    parts.push({ text: `Document page ${i + 1}:` });
+    parts.push({
+      inline_data: {
+        mime_type: 'image/jpeg',
+        data: processedImages[i].base64,
+      },
+    });
+  }
+  parts.push({
+    text: `Analyze all document pages above and extract every deal data field. Return ONLY valid JSON matching the required schema. For any field you cannot clearly read, use null. ${SYSTEM_PROMPT}`,
+  });
 
-FACTORY OPTIONS vs DEALER ADD-ONS vs AFTERMARKET/F&I PRODUCTS
-- Factory options appear on the window sticker / Monroney label. They have manufacturer option codes (e.g., "2TB", "PXR") and are installed at the factory. Extract these into factory_options.
-- Dealer add-ons are items the DEALER installed or added AFTER the vehicle left the factory — nitrogen tire fill, door edge guards, wheel locks, pinstripes, window tint, dealer appearance packages, etc. Extract these into dealer_addons.
-- Aftermarket / F&I products are sold in the Finance & Insurance office — GAP insurance, extended warranty / vehicle service contract, paint protection film/coating, fabric protection, tire & wheel protection, theft deterrent / LoJack, prepaid maintenance plans, key replacement, dent repair, windshield protection. Extract these into aftermarket_products with their type, provider name if shown, price, and coverage term in months.
+  const body = {
+    contents: [{ role: 'user', parts }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: EXTRACTION_SCHEMA,
+      temperature: 0.1,
+    },
+  };
 
-PRICING RULES
-- For APR, term, monthly payment, amount financed, and finance charge: PREFER the finance agreement / retail installment contract over the buyer's order, because the finance agreement is the binding document.
-- MSRP should come from the window sticker if available; selling price from the buyer's order.
-- If the same field appears with DIFFERENT values on different pages, record both in the conflicts array.
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(60000),
+  });
 
-DATA QUALITY
-- Return null for any field you cannot clearly read. NEVER guess or hallucinate values.
-- VINs are exactly 17 characters: digits and uppercase letters excluding I, O, Q.
-- Dollar amounts should be plain numbers (no $ sign, no commas).
-- APR should be the numeric percentage value (e.g., 5.99 not 0.0599).
+  if (!resp.ok) {
+    const errBody = await resp.text();
+    throw new Error(`Gemini API error ${resp.status}: ${errBody}`);
+  }
 
-Always call the extract_deal_data tool exactly once with your complete extraction.`;
+  const data = await resp.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) {
+    throw new Error('Gemini returned no content. Try again with clearer images.');
+  }
+
+  return JSON.parse(text);
+}
 
 // ---------------------------------------------------------------------------
-// Map rich extraction to simplified form-compatible fields (matches legacy parseOcrText output)
+// Provider: OpenAI GPT-4o / GPT-4o-mini
+// ---------------------------------------------------------------------------
+async function extractWithOpenAI(processedImages) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY is not configured.');
+  }
+
+  const model = process.env.OPENAI_MODEL || 'gpt-4o';
+
+  // Build content array
+  const content = [];
+  for (let i = 0; i < processedImages.length; i++) {
+    content.push({ type: 'text', text: `Document page ${i + 1}:` });
+    content.push({
+      type: 'image_url',
+      image_url: {
+        url: `data:image/jpeg;base64,${processedImages[i].base64}`,
+        detail: 'high',
+      },
+    });
+  }
+  content.push({
+    type: 'text',
+    text: 'Analyze all document pages above and extract the deal data. Return ONLY valid JSON matching the schema.',
+  });
+
+  const body = {
+    model,
+    max_tokens: 4096,
+    temperature: 0.1,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT + '\n\nReturn your extraction as a single JSON object with these top-level keys: vehicle, pricing, trade_in, financing, factory_options, dealer_addons, aftermarket_products, raw_text_summary, confidence, conflicts.' },
+      { role: 'user', content },
+    ],
+  };
+
+  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(60000),
+  });
+
+  if (!resp.ok) {
+    const errBody = await resp.text();
+    throw new Error(`OpenAI API error ${resp.status}: ${errBody}`);
+  }
+
+  const data = await resp.json();
+  const text = data.choices?.[0]?.message?.content;
+  if (!text) {
+    throw new Error('OpenAI returned no content.');
+  }
+
+  return JSON.parse(text);
+}
+
+// ---------------------------------------------------------------------------
+// Provider: Anthropic Claude (Sonnet / Haiku / Opus)
+// ---------------------------------------------------------------------------
+async function extractWithClaude(processedImages) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error('ANTHROPIC_API_KEY is not configured.');
+  }
+
+  const model = process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
+
+  // Build content array
+  const content = [];
+  for (let i = 0; i < processedImages.length; i++) {
+    content.push({ type: 'text', text: `Document page ${i + 1}:` });
+    content.push({
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: 'image/jpeg',
+        data: processedImages[i].base64,
+      },
+    });
+  }
+  content.push({
+    type: 'text',
+    text: 'Please analyze all document pages above and extract the deal data using the extract_deal_data tool.',
+  });
+
+  const body = {
+    model,
+    max_tokens: 4096,
+    system: SYSTEM_PROMPT,
+    tools: [CLAUDE_TOOL_SCHEMA],
+    tool_choice: { type: 'tool', name: 'extract_deal_data' },
+    messages: [{ role: 'user', content }],
+  };
+
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(60000),
+  });
+
+  if (!resp.ok) {
+    const errBody = await resp.text();
+    throw new Error(`Claude API error ${resp.status}: ${errBody}`);
+  }
+
+  const data = await resp.json();
+  const toolBlock = data.content?.find((b) => b.type === 'tool_use');
+  if (!toolBlock) {
+    throw new Error('Claude did not return structured extraction.');
+  }
+
+  return toolBlock.input;
+}
+
+// ---------------------------------------------------------------------------
+// Provider registry
+// ---------------------------------------------------------------------------
+const PROVIDERS = {
+  gemini: { fn: extractWithGemini, label: 'Google Gemini Flash', keyEnv: 'GOOGLE_AI_KEY' },
+  openai: { fn: extractWithOpenAI, label: 'OpenAI GPT-4o', keyEnv: 'OPENAI_API_KEY' },
+  claude: { fn: extractWithClaude, label: 'Anthropic Claude', keyEnv: 'ANTHROPIC_API_KEY' },
+};
+
+function getActiveProvider() {
+  const name = (process.env.VISION_PROVIDER || 'gemini').toLowerCase();
+  const provider = PROVIDERS[name];
+  if (!provider) {
+    throw new Error(`Unknown VISION_PROVIDER "${name}". Supported: ${Object.keys(PROVIDERS).join(', ')}`);
+  }
+  return { name, ...provider };
+}
+
+// ---------------------------------------------------------------------------
+// Map rich extraction to simplified form-compatible fields
 // ---------------------------------------------------------------------------
 function mapToFormFields(extracted) {
   const f = {};
@@ -299,18 +660,26 @@ async function nhtsaVinDecode(vin) {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/ocr/extract – Claude Vision extraction
+// GET /api/ocr/providers – list available providers and active provider
+// ---------------------------------------------------------------------------
+router.get('/providers', (_req, res) => {
+  const active = (process.env.VISION_PROVIDER || 'gemini').toLowerCase();
+  const list = Object.entries(PROVIDERS).map(([key, p]) => ({
+    id: key,
+    label: p.label,
+    active: key === active,
+    configured: !!process.env[p.keyEnv],
+  }));
+  res.json({ providers: list, active });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/ocr/extract – Vision extraction (multi-provider)
 // ---------------------------------------------------------------------------
 router.post('/extract', upload.array('documents', 10), async (req, res) => {
   try {
-    // ----- Validate API key -----
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({
-        success: false,
-        error: 'ANTHROPIC_API_KEY is not configured. Set the ANTHROPIC_API_KEY environment variable to use Claude Vision OCR extraction.',
-      });
-    }
+    // ----- Resolve provider -----
+    const provider = getActiveProvider();
 
     // ----- Collect image buffers from uploads + base64 body -----
     const imageBuffers = [];
@@ -362,51 +731,9 @@ router.post('/extract', upload.array('documents', 10), async (req, res) => {
       });
     }
 
-    // ----- Build Claude messages content array -----
-    const content = [];
-    for (let i = 0; i < processedImages.length; i++) {
-      content.push({
-        type: 'text',
-        text: `Document page ${i + 1}:`,
-      });
-      content.push({
-        type: 'image',
-        source: {
-          type: 'base64',
-          media_type: 'image/jpeg',
-          data: processedImages[i].base64,
-        },
-      });
-    }
-
-    content.push({
-      type: 'text',
-      text: 'Please analyze all document pages above and extract the deal data using the extract_deal_data tool.',
-    });
-
-    // ----- Call Claude API -----
-    const client = new Anthropic({ apiKey });
-    const model = process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
-
-    const response = await client.messages.create({
-      model,
-      max_tokens: 4096,
-      system: SYSTEM_PROMPT,
-      tools: [EXTRACT_DEAL_DATA_TOOL],
-      tool_choice: { type: 'tool', name: 'extract_deal_data' },
-      messages: [{ role: 'user', content }],
-    }, { timeout: 60000 });
-
-    // ----- Extract tool_use result -----
-    const toolBlock = response.content.find((b) => b.type === 'tool_use');
-    if (!toolBlock) {
-      return res.status(422).json({
-        success: false,
-        error: 'Claude did not return structured extraction. Try again or use /api/ocr/parse-legacy.',
-      });
-    }
-
-    const extracted = toolBlock.input;
+    // ----- Call vision provider -----
+    console.log(`[OCR] Using provider: ${provider.label} (${provider.name})`);
+    const extracted = await provider.fn(processedImages);
 
     // ----- NHTSA VIN cross-reference -----
     if (extracted.vehicle?.vin) {
@@ -430,7 +757,8 @@ router.post('/extract', upload.array('documents', 10), async (req, res) => {
       extracted,
       fields,
       fieldCount,
-      message: `Extracted ${fieldCount} fields from ${processedImages.length} document page${processedImages.length > 1 ? 's' : ''}`,
+      provider: provider.name,
+      message: `Extracted ${fieldCount} fields from ${processedImages.length} document page${processedImages.length > 1 ? 's' : ''} via ${provider.label}`,
       documentsProcessed: processedImages.length,
     });
   } catch (err) {
