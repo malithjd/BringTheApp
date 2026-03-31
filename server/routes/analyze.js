@@ -1,0 +1,602 @@
+import { Router } from 'express';
+import { readFileSync } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const router = Router();
+
+const msrpData = JSON.parse(readFileSync(path.join(__dirname, '../data/vehicle-msrp.json'), 'utf-8'));
+const stateFees = JSON.parse(readFileSync(path.join(__dirname, '../data/state-fees.json'), 'utf-8'));
+const taxRates = JSON.parse(readFileSync(path.join(__dirname, '../data/tax-rates.json'), 'utf-8'));
+const taxLaws = JSON.parse(readFileSync(path.join(__dirname, '../data/tax-laws.json'), 'utf-8'));
+
+// Fair APR by credit tier
+const FAIR_APR = {
+  excellent: 5,
+  'very-good': 7,
+  good: 9,
+  fair: 13,
+  poor: 18,
+};
+
+// Depreciation curve by vehicle age (years)
+const DEPRECIATION = {
+  0: 1.0, 1: 0.82, 2: 0.73, 3: 0.66, 4: 0.60, 5: 0.55,
+  6: 0.50, 7: 0.46, 8: 0.42, 9: 0.39,
+};
+
+function getDepreciation(age) {
+  if (age <= 0) return 1.0;
+  if (age >= 10) return 0.36;
+  return DEPRECIATION[age] || 0.36;
+}
+
+function findMsrpKey(make, model) {
+  const search = `${make} ${model}`.toLowerCase();
+  return Object.keys(msrpData).find(k => k.toLowerCase() === search)
+    || Object.keys(msrpData).find(k =>
+      k.toLowerCase().includes(model.toLowerCase()) &&
+      k.toLowerCase().includes(make.toLowerCase())
+    );
+}
+
+function findTrimMsrp(make, model, year, trim) {
+  const key = findMsrpKey(make, model);
+  if (!key || !msrpData[key]) return null;
+
+  let yearData = msrpData[key][String(year)];
+
+  // Try adjacent years if exact year not found
+  if (!yearData) {
+    const years = Object.keys(msrpData[key]).map(Number).sort();
+    const nearest = years.reduce((prev, curr) =>
+      Math.abs(curr - year) < Math.abs(prev - year) ? curr : prev
+    );
+    yearData = msrpData[key][String(nearest)];
+  }
+
+  if (!yearData) return null;
+
+  const trims = Object.keys(yearData);
+
+  if (trim) {
+    const t = trim.toLowerCase();
+    const matchedTrim = trims.find(k => k.toLowerCase() === t)
+      || trims.find(k => k.toLowerCase().includes(t) || t.includes(k.toLowerCase()));
+    if (matchedTrim) return { msrp: yearData[matchedTrim], trim: matchedTrim, allTrims: yearData };
+  }
+
+  // Return base trim
+  return { msrp: yearData[trims[0]], trim: trims[0], allTrims: yearData };
+}
+
+function estimateMarketValue(make, model, year, trim, condition, mileage) {
+  const msrpInfo = findTrimMsrp(make, model, year, trim);
+  let baseMsrp = msrpInfo?.msrp;
+
+  if (!baseMsrp) {
+    // No MSRP data — cannot estimate, return null
+    return { estimated: null, low: null, high: null, baseMsrp: null, source: 'unknown' };
+  }
+
+  if (condition === 'new') {
+    return {
+      estimated: baseMsrp,
+      low: baseMsrp,
+      high: Math.round(baseMsrp * 1.15),
+      baseMsrp,
+      source: 'msrp-data',
+      allTrims: msrpInfo.allTrims,
+      matchedTrim: msrpInfo.trim,
+    };
+  }
+
+  // Used vehicle
+  const currentYear = new Date().getFullYear();
+  const age = currentYear - year;
+  const depFactor = getDepreciation(age);
+  let estimated = Math.round(baseMsrp * depFactor);
+
+  // Mileage adjustment: deduct 1% per 5000 miles over 12000/year average
+  if (mileage) {
+    const expectedMiles = age * 12000;
+    const excessMiles = mileage - expectedMiles;
+    if (excessMiles > 0) {
+      const mileagePenalty = Math.floor(excessMiles / 5000) * 0.01;
+      estimated = Math.round(estimated * (1 - mileagePenalty));
+    }
+  }
+
+  return {
+    estimated,
+    low: Math.round(estimated * 0.92),
+    high: Math.round(estimated * 1.08),
+    baseMsrp,
+    age,
+    depFactor,
+    source: 'depreciation-model',
+    allTrims: msrpInfo?.allTrims,
+    matchedTrim: msrpInfo?.trim,
+  };
+}
+
+function calculatePayment(principal, aprPercent, termMonths) {
+  if (principal <= 0 || termMonths <= 0) return 0;
+  if (aprPercent <= 0) return Math.round((principal / termMonths) * 100) / 100;
+
+  const r = aprPercent / 100 / 12;
+  const n = termMonths;
+  const payment = principal * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+  return Math.round(payment * 100) / 100;
+}
+
+function scoreDeal(deal, market, stateData, taxInfo) {
+  const factors = [];
+  let totalScore = 0;
+
+  // Factor 1: Price vs Market (35 pts max)
+  if (market.estimated) {
+    const ratio = deal.price / market.estimated;
+    let pts;
+    if (ratio <= 0.90) pts = 35;
+    else if (ratio <= 0.95) pts = 30;
+    else if (ratio <= 1.00) pts = 25;
+    else if (ratio <= 1.05) pts = 18;
+    else if (ratio <= 1.10) pts = 10;
+    else if (ratio <= 1.20) pts = 3;
+    else if (ratio <= 1.50) pts = 0;
+    else pts = -20;
+
+    factors.push({ name: 'Price vs Market', points: pts, max: 35, ratio: Math.round(ratio * 100) / 100 });
+    totalScore += pts;
+  } else {
+    factors.push({ name: 'Price vs Market', points: 15, max: 35, note: 'No market data available — neutral score' });
+    totalScore += 15;
+  }
+
+  // Factor 2: APR Fairness (20 pts max)
+  const fairApr = FAIR_APR[deal.creditTier] || FAIR_APR.good;
+  const aprDiff = deal.apr - fairApr;
+  let aprPts;
+  if (deal.apr > 20) aprPts = -10;
+  else if (aprDiff <= 0) aprPts = 20;
+  else if (aprDiff <= 2) aprPts = 15;
+  else if (aprDiff <= 5) aprPts = 8;
+  else aprPts = 0;
+
+  factors.push({ name: 'APR Fairness', points: aprPts, max: 20, apr: deal.apr, fairApr });
+  totalScore += aprPts;
+
+  // Factor 3: Fees vs Norms (15 pts max)
+  const docFee = deal.docFee || 0;
+  let feePts = 15;
+  if (stateData?.docFee?.capped) {
+    const cap = stateData.docFee.cap;
+    if (docFee <= cap) feePts = 15;
+    else if (docFee <= cap * 1.1) feePts = 10;
+    else feePts = 5;
+  } else {
+    if (docFee <= 75) feePts = 15;
+    else if (docFee <= 300) feePts = 12;
+    else if (docFee <= 500) feePts = 8;
+    else feePts = 0;
+  }
+
+  factors.push({ name: 'Fees', points: feePts, max: 15, docFee });
+  totalScore += feePts;
+
+  // Factor 4: Add-ons (15 pts max)
+  const totalAddons = (deal.addons || []).reduce((sum, a) => sum + (a.price || 0), 0);
+  let addonPts;
+  if (totalAddons === 0) addonPts = 15;
+  else if (totalAddons <= 500) addonPts = 12;
+  else if (totalAddons <= 1500) addonPts = 8;
+  else if (totalAddons <= 3000) addonPts = 4;
+  else if (totalAddons <= 5000) addonPts = 0;
+  else addonPts = -5;
+
+  factors.push({ name: 'Add-ons', points: addonPts, max: 15, totalAddons });
+  totalScore += addonPts;
+
+  // Factor 5: Loan Term (8 pts max)
+  let termPts;
+  if (deal.term <= 36) termPts = 8;
+  else if (deal.term <= 48) termPts = 7;
+  else if (deal.term <= 60) termPts = 5;
+  else if (deal.term <= 72) termPts = 2;
+  else termPts = 0;
+
+  factors.push({ name: 'Loan Term', points: termPts, max: 8, term: deal.term });
+  totalScore += termPts;
+
+  // Factor 6: Down Payment / Equity (7 pts max)
+  const equity = (deal.down || 0) + Math.max(0, (deal.tradeIn || 0) - (deal.tradeOwed || 0));
+  const totalCost = deal.price + (deal.taxAmount || 0) + (deal.docFee || 0) + (deal.regFee || 0) + (deal.titleFee || 0) + totalAddons;
+  const downRatio = totalCost > 0 ? equity / totalCost : 0;
+  const hasNegativeEquity = (deal.tradeOwed || 0) > (deal.tradeIn || 0);
+
+  let downPts;
+  if (hasNegativeEquity) downPts = -5;
+  else if (downRatio >= 0.20) downPts = 7;
+  else if (downRatio >= 0.10) downPts = 5;
+  else if (downRatio >= 0.05) downPts = 3;
+  else downPts = 0;
+
+  factors.push({ name: 'Down Payment', points: downPts, max: 7, downRatio: Math.round(downRatio * 100) / 100 });
+  totalScore += downPts;
+
+  // Extreme overpay penalty: when price is way above market, cap the score
+  // This ensures a $80k Prius (ratio ~2.4) can't score above 15 just because
+  // the APR, fees, and addons are normal
+  if (market.estimated) {
+    const ratio = deal.price / market.estimated;
+    if (ratio > 2.0) {
+      totalScore = Math.min(totalScore, 5);
+    } else if (ratio > 1.5) {
+      totalScore = Math.min(totalScore, 15);
+    } else if (ratio > 1.30) {
+      totalScore = Math.min(totalScore, 30);
+    }
+  }
+
+  // Clamp score
+  const finalScore = Math.max(0, Math.min(100, totalScore));
+
+  let label;
+  if (finalScore >= 85) label = 'Excellent Deal';
+  else if (finalScore >= 70) label = 'Good Deal';
+  else if (finalScore >= 50) label = 'Fair Deal';
+  else if (finalScore >= 30) label = 'Below Average';
+  else label = 'Poor Deal — Walk Away';
+
+  return { score: finalScore, label, factors };
+}
+
+function generateFlags(deal, market, stateData) {
+  const redFlags = [];
+  const greenFlags = [];
+  const totalAddons = (deal.addons || []).reduce((sum, a) => sum + (a.price || 0), 0);
+
+  // Red flags
+  if (market.estimated) {
+    const ratio = deal.price / market.estimated;
+    if (ratio > 1.30) {
+      redFlags.push({
+        severity: 'critical',
+        title: 'Significantly Above MSRP',
+        detail: `Vehicle priced $${Math.round(deal.price - market.estimated).toLocaleString()} above market value. Price ratio: ${Math.round(ratio * 100)}% of market.`,
+        action: 'Negotiate down or walk away.',
+      });
+    } else if (ratio > 1.15) {
+      redFlags.push({
+        severity: 'warning',
+        title: 'Above Market Value',
+        detail: `Vehicle priced $${Math.round(deal.price - market.estimated).toLocaleString()} above market value.`,
+        action: 'Negotiate the price closer to market value.',
+      });
+    }
+
+    if (deal.condition === 'new' && market.baseMsrp && deal.price > market.baseMsrp * 1.20) {
+      redFlags.push({
+        severity: 'critical',
+        title: 'Possible Dealer Markup / ADM',
+        detail: `Price is ${Math.round((deal.price / market.baseMsrp - 1) * 100)}% above MSRP of $${market.baseMsrp.toLocaleString()}.`,
+        action: 'Ask dealer to remove any Additional Dealer Markup.',
+      });
+    }
+  }
+
+  const fairApr = FAIR_APR[deal.creditTier] || FAIR_APR.good;
+  if (deal.apr > fairApr + 3) {
+    redFlags.push({
+      severity: 'warning',
+      title: 'High APR',
+      detail: `APR of ${deal.apr}% is ${(deal.apr - fairApr).toFixed(1)}% above typical for ${deal.creditTier} credit.`,
+      action: 'Get a pre-approval from a credit union before accepting this rate.',
+    });
+  }
+
+  if (stateData?.docFee?.capped && deal.docFee > stateData.docFee.cap) {
+    redFlags.push({
+      severity: 'critical',
+      title: 'Doc Fee Exceeds Legal Cap',
+      detail: `Doc fee of $${deal.docFee} exceeds the legal maximum of $${stateData.docFee.cap} per ${stateData.docFee.law}.`,
+      action: 'Tell the dealer to reduce the doc fee to the legal limit.',
+    });
+  } else if (!stateData?.docFee?.capped && deal.docFee > 500) {
+    redFlags.push({
+      severity: 'warning',
+      title: 'High Documentation Fee',
+      detail: `Doc fee of $${deal.docFee} is significantly above the national average of $75-150.`,
+      action: 'Negotiate the doc fee down.',
+    });
+  }
+
+  (deal.addons || []).forEach(addon => {
+    if (addon.price > 2000) {
+      redFlags.push({
+        severity: 'warning',
+        title: `Expensive Add-on: ${addon.name}`,
+        detail: `${addon.name} at $${addon.price.toLocaleString()} is unusually expensive.`,
+        action: 'Consider removing or getting third-party coverage.',
+      });
+    }
+  });
+
+  if (totalAddons > 3000) {
+    redFlags.push({
+      severity: 'warning',
+      title: 'High Total Add-ons',
+      detail: `Total add-ons of $${totalAddons.toLocaleString()} — review each for necessity.`,
+      action: 'Remove any add-ons you didn\'t specifically request.',
+    });
+  }
+
+  if (deal.term > 72) {
+    redFlags.push({
+      severity: 'warning',
+      title: 'Long Loan Term',
+      detail: `Loan term of ${deal.term} months means significantly more interest paid.`,
+      action: 'Try to keep the term at 60 months or less.',
+    });
+  }
+
+  if ((deal.tradeOwed || 0) > (deal.tradeIn || 0)) {
+    const negEquity = deal.tradeOwed - deal.tradeIn;
+    redFlags.push({
+      severity: 'critical',
+      title: 'Negative Equity',
+      detail: `You owe $${negEquity.toLocaleString()} more than your trade-in value. This gets added to your new loan.`,
+      action: 'Consider paying off more of the trade-in before purchasing.',
+    });
+  }
+
+  // Interest burden
+  if (deal.totalInterest && deal.price) {
+    const interestRatio = deal.totalInterest / deal.price;
+    if (interestRatio > 0.30) {
+      redFlags.push({
+        severity: 'warning',
+        title: 'High Interest Burden',
+        detail: `You'll pay $${Math.round(deal.totalInterest).toLocaleString()} in interest — ${Math.round(interestRatio * 100)}% of vehicle price.`,
+        action: 'Consider a shorter term or lower APR.',
+      });
+    }
+  }
+
+  // Green flags
+  if (market.estimated && deal.price <= market.estimated * 0.95) {
+    greenFlags.push({
+      title: 'Below Market Price',
+      detail: `Price is ${Math.round((1 - deal.price / market.estimated) * 100)}% below estimated market value.`,
+    });
+  }
+
+  if (deal.apr <= 4) {
+    greenFlags.push({
+      title: 'Excellent Interest Rate',
+      detail: `APR of ${deal.apr}% is an excellent rate.`,
+    });
+  }
+
+  if (deal.docFee <= 100) {
+    greenFlags.push({
+      title: 'Reasonable Doc Fee',
+      detail: `Documentation fee of $${deal.docFee} is very reasonable.`,
+    });
+  }
+
+  if (totalAddons === 0 || totalAddons < 500) {
+    greenFlags.push({
+      title: 'Minimal Add-ons',
+      detail: totalAddons === 0 ? 'No add-ons — clean deal.' : `Only $${totalAddons} in add-ons.`,
+    });
+  }
+
+  const equity = (deal.down || 0) + Math.max(0, (deal.tradeIn || 0) - (deal.tradeOwed || 0));
+  const totalCost = deal.price + (deal.taxAmount || 0) + (deal.docFee || 0) + (deal.regFee || 0) + totalAddons;
+  if (totalCost > 0 && equity / totalCost >= 0.20) {
+    greenFlags.push({
+      title: 'Strong Down Payment',
+      detail: `${Math.round((equity / totalCost) * 100)}% down reduces loan risk and monthly payment.`,
+    });
+  }
+
+  if (deal.term <= 48) {
+    greenFlags.push({
+      title: 'Short Loan Term',
+      detail: `${deal.term}-month term saves on total interest paid.`,
+    });
+  }
+
+  if (deal.totalInterest && deal.price && deal.totalInterest / deal.price < 0.10) {
+    greenFlags.push({
+      title: 'Low Interest Burden',
+      detail: `Total interest is only ${Math.round((deal.totalInterest / deal.price) * 100)}% of vehicle price.`,
+    });
+  }
+
+  return { redFlags, greenFlags };
+}
+
+function generateNegotiationScripts(deal, market, stateData) {
+  const scripts = [];
+
+  if (market.estimated && deal.price > market.estimated * 1.05) {
+    const diff = Math.round(deal.price - market.estimated);
+    const target = Math.round(market.estimated * 1.02);
+    scripts.push({
+      issue: 'Price Above Market',
+      script: `"I've researched the ${deal.year} ${deal.make} ${deal.model} and comparable vehicles are selling for around $${market.estimated.toLocaleString()}. Your asking price of $${deal.price.toLocaleString()} is $${diff.toLocaleString()} above market. Can we work toward $${target.toLocaleString()}?"`,
+    });
+  }
+
+  const fairApr = FAIR_APR[deal.creditTier] || FAIR_APR.good;
+  if (deal.apr > fairApr + 2) {
+    const betterRate = (fairApr + 1).toFixed(1);
+    scripts.push({
+      issue: 'High APR',
+      script: `"I have a pre-approval from my credit union at ${betterRate}%. Can you match or beat that rate?"`,
+    });
+  }
+
+  if (stateData?.docFee?.capped && deal.docFee > stateData.docFee.cap) {
+    scripts.push({
+      issue: 'Doc Fee Over Legal Cap',
+      script: `"I see the doc fee is $${deal.docFee}. Under ${stateData.docFee.law}, the maximum allowed is $${stateData.docFee.cap}. Please correct this to the legal limit."`,
+    });
+  } else if (deal.docFee > 300) {
+    scripts.push({
+      issue: 'High Doc Fee',
+      script: `"The doc fee of $${deal.docFee} is well above the national average of $75-150. I'd like to negotiate this down to $${Math.min(deal.docFee, 150)}."`,
+    });
+  }
+
+  (deal.addons || []).forEach(addon => {
+    if (addon.price > 500) {
+      scripts.push({
+        issue: `Remove ${addon.name}`,
+        script: `"I'd like to remove ${addon.name} ($${addon.price.toLocaleString()}). I can get equivalent coverage from a third-party provider for significantly less."`,
+      });
+    }
+  });
+
+  return scripts;
+}
+
+// POST /api/analyze
+router.post('/', async (req, res) => {
+  try {
+    const {
+      year, make, model, trim, condition, mileage, zip,
+      price, down, tradeIn, tradeOwed, apr, term, creditTier,
+      docFee, regFee, titleFee, addons,
+    } = req.body;
+
+    // Validate required fields
+    if (!price || !zip || !year || !make || !model || !condition || !term) {
+      return res.status(400).json({ error: 'Missing required fields: price, zip, year, make, model, condition, term' });
+    }
+
+    // Get state from ZIP
+    const { zipToState } = await import('./tax.js');
+    const zipPrefix = Math.floor(parseInt(zip, 10) / 100);
+    const state = zipToState(zipPrefix);
+
+    if (!state) {
+      return res.status(400).json({ error: 'Could not determine state from ZIP' });
+    }
+
+    // Get tax data
+    const stateData = stateFees[state] || {};
+    const taxData = taxRates[state] || {};
+
+    // Check if NYC
+    const z = parseInt(zip, 10);
+    const isNYC = state === 'NY' && ((z >= 10000 && z <= 10499) || (z >= 11000 && z <= 11999));
+
+    let taxRate = taxData.stateRate + taxData.avgLocalRate;
+    if (isNYC) taxRate = 0.08875;
+
+    // Calculate tax
+    // In most states, trade-in reduces taxable amount
+    const taxableAmount = Math.max(0, price - (tradeIn || 0));
+    const taxAmount = Math.round(taxableAmount * taxRate * 100) / 100;
+
+    // Total fees
+    const totalDocFee = docFee || stateData?.docFee?.typical || stateData?.docFee?.cap || 0;
+    const totalRegFee = regFee || (stateData?.registration?.estimatedRange?.[0]) || 0;
+    const totalTitleFee = titleFee || stateData?.title?.fee || 0;
+    const totalAddons = (addons || []).reduce((sum, a) => sum + (a.price || 0), 0);
+
+    // Total cost
+    const totalCost = price + taxAmount + totalDocFee + totalRegFee + totalTitleFee + totalAddons;
+
+    // Loan amount
+    const equity = (down || 0) + Math.max(0, (tradeIn || 0) - (tradeOwed || 0));
+    const negativeEquity = Math.max(0, (tradeOwed || 0) - (tradeIn || 0));
+    const loanAmount = Math.max(0, totalCost - equity + negativeEquity);
+
+    // Payment
+    const monthlyPayment = calculatePayment(loanAmount, apr || 6, term);
+    const totalPaid = Math.round(monthlyPayment * term * 100) / 100;
+    const totalInterest = Math.round((totalPaid - loanAmount) * 100) / 100;
+
+    // Market estimation
+    const market = estimateMarketValue(make, model, parseInt(year), trim, condition, mileage);
+
+    // Build the deal object with computed values for scoring
+    const dealForScoring = {
+      ...req.body,
+      price: parseFloat(price),
+      down: parseFloat(down) || 0,
+      tradeIn: parseFloat(tradeIn) || 0,
+      tradeOwed: parseFloat(tradeOwed) || 0,
+      apr: parseFloat(apr) || 6,
+      term: parseInt(term),
+      docFee: totalDocFee,
+      regFee: totalRegFee,
+      titleFee: totalTitleFee,
+      taxAmount,
+      totalInterest,
+      creditTier: creditTier || 'good',
+      condition,
+      addons: addons || [],
+    };
+
+    // Score the deal
+    const scoring = scoreDeal(dealForScoring, market, stateData);
+
+    // Generate flags
+    const flags = generateFlags(dealForScoring, market, stateData);
+
+    // Negotiation scripts
+    const scripts = generateNegotiationScripts(dealForScoring, market, stateData);
+
+    // Tax law
+    const taxLaw = taxLaws[state] || null;
+
+    res.json({
+      score: scoring.score,
+      label: scoring.label,
+      factors: scoring.factors,
+      vehicle: { year, make, model, trim, condition, mileage },
+      entered: {
+        price: parseFloat(price),
+        down: parseFloat(down) || 0,
+        tradeIn: parseFloat(tradeIn) || 0,
+        tradeOwed: parseFloat(tradeOwed) || 0,
+        apr: parseFloat(apr) || 6,
+        term: parseInt(term),
+        creditTier: creditTier || 'good',
+        addons: addons || [],
+      },
+      calculated: {
+        state,
+        taxRate: Math.round(taxRate * 10000) / 100,
+        taxAmount,
+        taxLaw,
+        docFee: totalDocFee,
+        docFeeLaw: stateData?.docFee?.law || null,
+        docFeeCap: stateData?.docFee?.capped ? stateData.docFee.cap : null,
+        regFee: totalRegFee,
+        titleFee: totalTitleFee,
+        totalAddons,
+        totalCost: Math.round(totalCost * 100) / 100,
+        loanAmount: Math.round(loanAmount * 100) / 100,
+        monthlyPayment,
+        totalInterest,
+        totalPaid: Math.round(totalPaid * 100) / 100,
+      },
+      market,
+      flags,
+      scripts,
+    });
+  } catch (err) {
+    console.error('Analysis error:', err);
+    res.status(500).json({ error: 'Analysis failed', message: err.message });
+  }
+});
+
+export default router;
