@@ -7,7 +7,7 @@ import { getMakes, getModels, getTrims, decodeVin, getTax, getFees, analyzeDeal 
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 16 }, (_, i) => CURRENT_YEAR + 1 - i);
-const TERMS = [0, 24, 36, 48, 60, 72, 84];
+const TERMS = [24, 36, 48, 60, 72, 84];
 const CREDIT_TIERS = [
   { value: 'excellent', label: 'Excellent', apr: 4.5 },
   { value: 'very-good', label: 'Very Good', apr: 6.0 },
@@ -40,6 +40,7 @@ const initialFormState = {
   hasTradeIn: false,
   tradeIn: '',
   tradeOwed: '',
+  hasFinancing: true,
   creditTier: 'good',
   apr: 8.5,
   aprAuto: true,
@@ -228,8 +229,8 @@ export default function FormView({ initialData, onAnalysisComplete }) {
         down: parseFloat(form.down) || 0,
         tradeIn: form.hasTradeIn ? parseFloat(form.tradeIn) || 0 : 0,
         tradeOwed: form.hasTradeIn ? parseFloat(form.tradeOwed) || 0 : 0,
-        apr: form.term === 0 ? 0 : (parseFloat(form.apr) || 0),
-        term: parseInt(form.term) || 0,
+        apr: form.hasFinancing ? (parseFloat(form.apr) || 0) : 0,
+        term: form.hasFinancing ? (parseInt(form.term) || 60) : 0,
         creditTier: form.creditTier,
         docFee: parseFloat(form.docFee) || 0,
         regFee: parseFloat(form.regFee) || 0,
@@ -559,67 +560,94 @@ export default function FormView({ initialData, onAnalysisComplete }) {
         )}
       </Section>
 
-      {/* Section 4: Financing (at the bottom — optional for cash buyers) */}
-      <Section title="Financing (optional)" expanded={expandedSections.financing} onToggle={() => toggleSection('financing')}>
-        <label className="block text-sm text-text2 mb-2">Credit Score</label>
-        <div className="flex gap-1.5 flex-wrap mb-4">
-          {CREDIT_TIERS.map(tier => (
-            <button
-              key={tier.value}
-              onClick={() => handleCreditTier(tier.value)}
-              className={`px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
-                form.creditTier === tier.value
-                  ? 'bg-accent text-white'
-                  : 'bg-surface2 text-text2 hover:text-text'
-              }`}
-            >
-              {tier.label}
-            </button>
-          ))}
+      {/* Section 4: Financing */}
+      <Section title="Financing" expanded={expandedSections.financing} onToggle={() => toggleSection('financing')}>
+        {/* Financing toggle */}
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => set('hasFinancing', true)}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+              form.hasFinancing
+                ? 'bg-accent text-white'
+                : 'bg-surface2 text-text2 hover:text-text'
+            }`}
+          >
+            Financing a Loan
+          </button>
+          <button
+            onClick={() => set('hasFinancing', false)}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+              !form.hasFinancing
+                ? 'bg-green/90 text-white'
+                : 'bg-surface2 text-text2 hover:text-text'
+            }`}
+          >
+            Paying Cash
+          </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm text-text2 mb-1">
-              APR %
-              {form.aprAuto && <span className="ml-1 text-xs bg-accent/20 text-accent px-1.5 py-0.5 rounded">Auto</span>}
-            </label>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={form.aprDisplay ?? form.apr}
-              onFocus={() => set('aprDisplay', String(form.apr))}
-              onChange={(e) => {
-                const raw = e.target.value.replace(/[^0-9.]/g, '');
-                set('aprDisplay', raw);
-                const num = parseFloat(raw);
-                if (!isNaN(num)) set('apr', num);
-                set('aprAuto', false);
-              }}
-              onBlur={() => {
-                set('aprDisplay', undefined);
-              }}
-              className="w-full bg-surface2 text-text rounded-lg px-3 py-3 text-[16px] border border-border focus:border-accent focus:outline-none"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-text2 mb-1">Loan Term</label>
-            <select
-              value={form.term}
-              onChange={(e) => set('term', parseInt(e.target.value))}
-              className="w-full bg-surface2 text-text rounded-lg px-3 py-3 text-[16px] border border-border focus:border-accent focus:outline-none"
-            >
-              {TERMS.map(t => (
-                <option key={t} value={t}>{t === 0 ? 'Cash — No Loan' : `${t} months`}</option>
+        {form.hasFinancing ? (
+          <>
+            <label className="block text-sm text-text2 mb-2">Credit Score</label>
+            <div className="flex gap-1.5 flex-wrap mb-4">
+              {CREDIT_TIERS.map(tier => (
+                <button
+                  key={tier.value}
+                  onClick={() => handleCreditTier(tier.value)}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                    form.creditTier === tier.value
+                      ? 'bg-accent text-white'
+                      : 'bg-surface2 text-text2 hover:text-text'
+                  }`}
+                >
+                  {tier.label}
+                </button>
               ))}
-            </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-text2 mb-1">
+                  APR %
+                  {form.aprAuto && <span className="ml-1 text-xs bg-accent/20 text-accent px-1.5 py-0.5 rounded">Auto</span>}
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={form.aprDisplay ?? form.apr}
+                  onFocus={() => set('aprDisplay', String(form.apr))}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^0-9.]/g, '');
+                    set('aprDisplay', raw);
+                    const num = parseFloat(raw);
+                    if (!isNaN(num)) set('apr', num);
+                    set('aprAuto', false);
+                  }}
+                  onBlur={() => {
+                    set('aprDisplay', undefined);
+                  }}
+                  className="w-full bg-surface2 text-text rounded-lg px-3 py-3 text-[16px] border border-border focus:border-accent focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-text2 mb-1">Loan Term</label>
+                <select
+                  value={form.term}
+                  onChange={(e) => set('term', parseInt(e.target.value))}
+                  className="w-full bg-surface2 text-text rounded-lg px-3 py-3 text-[16px] border border-border focus:border-accent focus:outline-none"
+                >
+                  {TERMS.map(t => (
+                    <option key={t} value={t}>{t} months</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex items-center gap-2.5 p-3 bg-green/10 border border-green/20 rounded-lg">
+            <svg className="w-4 h-4 text-green flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd"/></svg>
+            <p className="text-sm text-text2">Cash deal — no interest charges. Financing factors will score full marks.</p>
           </div>
-        </div>
-        {form.term === 0 && (
-          <p className="text-xs text-green mt-2 flex items-center gap-1">
-            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd"/></svg>
-            Cash deal — no interest charges. APR & term scoring will auto-max.
-          </p>
         )}
       </Section>
 
@@ -659,18 +687,20 @@ export default function FormView({ initialData, onAnalysisComplete }) {
         )}
       </button>
 
-      {/* Payment Preview Bar */}
-      <PaymentPreview
-        price={form.price}
-        down={form.down}
-        tradeIn={form.hasTradeIn ? form.tradeIn : 0}
-        tradeOwed={form.hasTradeIn ? form.tradeOwed : 0}
-        apr={form.apr}
-        term={form.term}
-        addons={form.addons}
-        taxRate={taxRate}
-        docFee={form.docFee}
-      />
+      {/* Payment Preview Bar (only when financing) */}
+      {form.hasFinancing && (
+        <PaymentPreview
+          price={form.price}
+          down={form.down}
+          tradeIn={form.hasTradeIn ? form.tradeIn : 0}
+          tradeOwed={form.hasTradeIn ? form.tradeOwed : 0}
+          apr={form.apr}
+          term={form.term}
+          addons={form.addons}
+          taxRate={taxRate}
+          docFee={form.docFee}
+        />
+      )}
     </div>
   );
 }
