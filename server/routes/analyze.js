@@ -315,13 +315,23 @@ function generateFlags(deal, market, stateData) {
       detail: `Doc fee of $${deal.docFee} exceeds the legal maximum of $${stateData.docFee.cap} per ${stateData.docFee.law}.`,
       action: 'Tell the dealer to reduce the doc fee to the legal limit.',
     });
-  } else if (!stateData?.docFee?.capped && deal.docFee > 500) {
-    redFlags.push({
-      severity: 'warning',
-      title: 'High Documentation Fee',
-      detail: `Doc fee of $${deal.docFee} is significantly above the national average of $75-150.`,
-      action: 'Negotiate the doc fee down.',
-    });
+  } else if (!stateData?.docFee?.capped) {
+    const typicalDocFee = stateData?.docFee?.typical || 150;
+    if (deal.docFee > typicalDocFee * 1.5) {
+      redFlags.push({
+        severity: 'warning',
+        title: 'High Documentation Fee',
+        detail: `Doc fee of $${deal.docFee} is well above the typical $${typicalDocFee} for your state.`,
+        action: 'Negotiate the doc fee down — the state average is around $' + typicalDocFee + '.',
+      });
+    } else if (deal.docFee >= 500) {
+      redFlags.push({
+        severity: 'warning',
+        title: 'High Documentation Fee',
+        detail: `Doc fee of $${deal.docFee} is significantly above the national average of $75-150.`,
+        action: 'Negotiate the doc fee down.',
+      });
+    }
   }
 
   // Registration fee check against state data
