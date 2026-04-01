@@ -561,7 +561,7 @@ export default function FormView({ initialData, onAnalysisComplete }) {
       </Section>
 
       {/* Section 4: Financing */}
-      <Section title="Financing" expanded={expandedSections.financing} onToggle={() => toggleSection('financing')}>
+      <Section title="Finance or Cash?" expanded={expandedSections.financing} onToggle={() => toggleSection('financing')}>
         {/* Financing toggle */}
         <div className="flex gap-2 mb-4">
           <button

@@ -324,6 +324,38 @@ function generateFlags(deal, market, stateData) {
     });
   }
 
+  // Registration fee check against state data
+  if (deal.regFee && stateData?.registration?.estimatedRange) {
+    const [low, high] = stateData.registration.estimatedRange;
+    if (deal.regFee > high * 2) {
+      redFlags.push({
+        severity: 'warning',
+        title: 'Registration Fee Seems Too High',
+        detail: `Registration fee of $${deal.regFee} is well above the typical $${low}–$${high} range for ${deal.state || 'your state'}.`,
+        action: 'Verify this amount with your DMV. Dealers sometimes inflate registration estimates.',
+      });
+    }
+  } else if (deal.regFee > 500) {
+    redFlags.push({
+      severity: 'warning',
+      title: 'High Registration Fee',
+      detail: `Registration fee of $${deal.regFee} is unusually high. Most states charge $50–$300.`,
+      action: 'Ask the dealer to itemize this fee and verify with your local DMV.',
+    });
+  }
+
+  // Title fee check
+  if (deal.titleFee && stateData?.title?.fee) {
+    if (deal.titleFee > stateData.title.fee * 2) {
+      redFlags.push({
+        severity: 'warning',
+        title: 'Title Fee Seems Too High',
+        detail: `Title fee of $${deal.titleFee} is above the typical $${stateData.title.fee} for ${deal.state || 'your state'}.`,
+        action: 'State title fees are fixed — verify this amount is correct.',
+      });
+    }
+  }
+
   (deal.addons || []).forEach(addon => {
     if (addon.price > 2000) {
       redFlags.push({
@@ -550,6 +582,7 @@ router.post('/', async (req, res) => {
       docFee: totalDocFee,
       regFee: totalRegFee,
       titleFee: totalTitleFee,
+      state,
       taxAmount,
       totalInterest,
       creditTier: creditTier || 'good',
