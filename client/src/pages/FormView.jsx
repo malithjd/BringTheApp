@@ -107,6 +107,17 @@ export default function FormView({ initialData, onAnalysisComplete }) {
     }
   }, [form.make, form.model, form.year]);
 
+  // Auto-switch to "used" when year is 2+ years old
+  useEffect(() => {
+    if (form.year) {
+      const currentYear = new Date().getFullYear();
+      const vehicleAge = currentYear - parseInt(form.year);
+      if (vehicleAge >= 2 && form.condition === 'new') {
+        set('condition', 'used');
+      }
+    }
+  }, [form.year]);
+
   // Lookup tax and fees when ZIP changes
   useEffect(() => {
     if (form.zip && form.zip.length === 5) {

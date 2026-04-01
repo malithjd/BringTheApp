@@ -547,10 +547,10 @@ router.post('/', async (req, res) => {
     const taxableAmount = Math.max(0, price - (tradeIn || 0));
     const taxAmount = Math.round(taxableAmount * taxRate * 100) / 100;
 
-    // Total fees
-    const totalDocFee = docFee || stateData?.docFee?.typical || stateData?.docFee?.cap || 0;
-    const totalRegFee = regFee || (stateData?.registration?.estimatedRange?.[0]) || 0;
-    const totalTitleFee = titleFee || stateData?.title?.fee || 0;
+    // Total fees — use nullish coalescing (??) so user-entered $0 is respected
+    const totalDocFee = (docFee != null && docFee !== '') ? parseFloat(docFee) : (stateData?.docFee?.typical || stateData?.docFee?.cap || 0);
+    const totalRegFee = (regFee != null && regFee !== '') ? parseFloat(regFee) : (stateData?.registration?.estimatedRange?.[0] || 0);
+    const totalTitleFee = (titleFee != null && titleFee !== '') ? parseFloat(titleFee) : (stateData?.title?.fee || 0);
     const totalAddons = (addons || []).reduce((sum, a) => sum + (a.price || 0), 0);
 
     // Total cost
@@ -567,8 +567,11 @@ router.post('/', async (req, res) => {
     const totalPaid = effectiveTerm > 0 ? Math.round(monthlyPayment * effectiveTerm * 100) / 100 : Math.round(totalCost * 100) / 100;
     const totalInterest = effectiveTerm > 0 ? Math.round((totalPaid - loanAmount) * 100) / 100 : 0;
 
-    // Market estimation
-    const market = estimateMarketValue(make, model, parseInt(year), trim, condition, mileage);
+    // Market estimation — auto-correct condition for old vehicles
+    const currentYear = new Date().getFullYear();
+    const vehicleAge = currentYear - parseInt(year);
+    const effectiveCondition = (vehicleAge >= 2 && condition === 'new') ? 'used' : condition;
+    const market = estimateMarketValue(make, model, parseInt(year), trim, effectiveCondition, mileage);
 
     // Build the deal object with computed values for scoring
     const dealForScoring = {
