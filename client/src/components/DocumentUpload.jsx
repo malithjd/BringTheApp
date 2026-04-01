@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { extractDocuments } from '../lib/api';
 import { preprocessImage, isPDF, getPDFThumbnailUrl } from '../lib/imageUtils';
+import { trackOcrScan, trackOcrResult, trackSkipOcr } from '../lib/analytics';
 
 /**
  * Multi-document upload component with image preprocessing.
@@ -97,12 +98,14 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
     setScanning(true);
     setError(null);
     setRetryFiles(null);
+    trackOcrScan(readyItems.length, 'auto');
 
     try {
       const blobs = readyItems.map((item) => item.blob);
       const result = await extractDocuments(blobs);
 
       if (result.success && result.fields && Object.keys(result.fields).length > 0) {
+        trackOcrResult(true, result.fieldCount || Object.keys(result.fields).length, readyItems.length, 'auto');
         onFieldsExtracted(result.fields);
       } else {
         setError(
@@ -112,6 +115,7 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
         setRetryFiles(blobs);
       }
     } catch (err) {
+      trackOcrResult(false, 0, readyItems.length, 'auto');
       setError(err.message || 'Failed to process documents. Please try again.');
       setRetryFiles(queue.filter((item) => !item.processing && item.blob).map((item) => item.blob));
     } finally {
@@ -278,7 +282,7 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
               </button>
               <span className="text-text2">|</span>
               <button
-                onClick={onSkip}
+                onClick={() => { trackSkipOcr(); onSkip(); }}
                 className="text-text2 hover:text-text text-sm font-medium"
               >
                 Enter details manually
@@ -290,7 +294,7 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
         {/* Manual entry link */}
         <div className="text-center pt-1">
           <button
-            onClick={onSkip}
+            onClick={() => { trackSkipOcr(); onSkip(); }}
             className="text-accent/80 hover:text-accent text-sm font-medium transition-colors underline underline-offset-2 decoration-accent/30 hover:decoration-accent/60"
           >
             or enter deal details manually
@@ -408,7 +412,7 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
               </>
             )}
             <button
-              onClick={onSkip}
+              onClick={() => { trackSkipOcr(); onSkip(); }}
               className="text-text2 hover:text-text text-sm font-medium"
             >
               Enter details manually
@@ -420,7 +424,7 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
       {/* Manual entry link */}
       <div className="text-center pt-1">
         <button
-          onClick={onSkip}
+          onClick={() => { trackSkipOcr(); onSkip(); }}
           className="text-accent/80 hover:text-accent text-sm font-medium transition-colors underline underline-offset-2 decoration-accent/30 hover:decoration-accent/60"
         >
           or enter deal details manually

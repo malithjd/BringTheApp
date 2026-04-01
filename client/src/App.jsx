@@ -1,9 +1,13 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import FormView from './pages/FormView';
 import ResultsView from './pages/ResultsView';
+import { initAnalytics, trackDealAnalyzed, trackStartOver } from './lib/analytics';
 
 function App() {
   const [view, setView] = useState('form'); // 'form' | 'results'
+
+  // Initialize analytics once on mount
+  useEffect(() => { initAnalytics(); }, []);
   const [dealData, setDealData] = useState(null);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [formKey, setFormKey] = useState(0); // forces FormView remount on Start Over
@@ -13,6 +17,7 @@ function App() {
     setAnalysisResult(result);
     setView('results');
     window.scrollTo(0, 0);
+    trackDealAnalyzed(result);
   };
 
   const handleEditDeal = () => {
@@ -21,12 +26,13 @@ function App() {
   };
 
   const handleNewDeal = useCallback(() => {
+    trackStartOver(view);
     setDealData(null);
     setAnalysisResult(null);
     setFormKey(k => k + 1); // remount FormView so it resets to upload mode
     setView('form');
     window.scrollTo(0, 0);
-  }, []);
+  }, [view]);
 
   return (
     <div className="min-h-dvh bg-bg">
