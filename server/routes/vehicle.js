@@ -8,21 +8,29 @@ const router = Router();
 
 const msrpData = JSON.parse(readFileSync(path.join(__dirname, '../data/vehicle-msrp.json'), 'utf-8'));
 
+// Curated list of consumer-relevant makes (covers 98%+ of US new/used sales)
+const CONSUMER_MAKES = [
+  'Acura', 'Alfa Romeo', 'Audi', 'BMW', 'Buick', 'Cadillac', 'Chevrolet',
+  'Chrysler', 'Dodge', 'Fiat', 'Ford', 'Genesis', 'GMC', 'Honda', 'Hyundai',
+  'Infiniti', 'Jaguar', 'Jeep', 'Kia', 'Land Rover', 'Lexus', 'Lincoln',
+  'Mazda', 'Mercedes-Benz', 'Mini', 'Mitsubishi', 'Nissan', 'Polestar',
+  'Porsche', 'Ram', 'Rivian', 'Subaru', 'Tesla', 'Toyota', 'Volkswagen',
+  'Volvo',
+].sort();
+
 // GET /api/vehicle/makes
-router.get('/makes', async (req, res) => {
-  try {
-    const response = await fetch('https://vpic.nhtsa.dot.gov/api/vehicles/GetAllMakes?format=json');
-    const data = await response.json();
-    const makes = data.Results.map(m => ({
-      id: m.Make_ID,
-      name: m.Make_Name,
-    })).sort((a, b) => a.name.localeCompare(b.name));
-    res.json(makes);
-  } catch (err) {
-    // Fallback to MSRP data keys
-    const makes = [...new Set(Object.keys(msrpData).map(k => k.split(' ')[0]))].sort();
-    res.json(makes.map((name, i) => ({ id: i, name })));
-  }
+router.get('/makes', (req, res) => {
+  // Merge curated list with any makes from MSRP data
+  const msrpMakes = [...new Set(Object.keys(msrpData).map(k => {
+    // Handle multi-word makes like "Land Rover" — match against curated list
+    for (const cm of CONSUMER_MAKES) {
+      if (k.toLowerCase().startsWith(cm.toLowerCase() + ' ')) return cm;
+    }
+    return k.split(' ')[0];
+  }))];
+
+  const allMakes = [...new Set([...CONSUMER_MAKES, ...msrpMakes])].sort();
+  res.json(allMakes.map((name, i) => ({ id: i, name })));
 });
 
 // GET /api/vehicle/models/:make/:year

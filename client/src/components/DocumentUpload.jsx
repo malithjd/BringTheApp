@@ -430,14 +430,14 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
   );
 }
 
-// ---- Animated scanning progress component ----
+// ---- Minimalistic scanning progress component ----
 const SCAN_STEPS = [
-  { label: 'Reading document pages...', icon: '📄', target: 15 },
-  { label: 'Detecting text & tables...', icon: '🔍', target: 35 },
-  { label: 'Extracting vehicle info...', icon: '🚗', target: 55 },
-  { label: 'Extracting pricing & fees...', icon: '💰', target: 75 },
-  { label: 'Cross-referencing data...', icon: '🔗', target: 90 },
-  { label: 'Finalizing extraction...', icon: '✨', target: 98 },
+  { label: 'Reading document pages', target: 15 },
+  { label: 'Detecting text & tables', target: 35 },
+  { label: 'Extracting vehicle info', target: 55 },
+  { label: 'Extracting pricing & fees', target: 75 },
+  { label: 'Cross-referencing data', target: 90 },
+  { label: 'Finalizing', target: 98 },
 ];
 
 function ScanningProgress({ pageCount }) {
@@ -455,7 +455,6 @@ function ScanningProgress({ pageCount }) {
           }
           return Math.min(prev + 0.2, 99);
         }
-        // Ease toward target — faster early, slower near target
         const remaining = target - prev;
         const increment = Math.max(0.3, remaining * 0.08);
         return Math.min(prev + increment, 99);
@@ -469,13 +468,25 @@ function ScanningProgress({ pageCount }) {
 
   return (
     <div className="space-y-4">
-      <div className="border-2 border-accent/30 rounded-xl p-8 text-center bg-accent/5">
+      <div className="border border-border rounded-xl p-8 text-center">
         <div className="py-4">
-          {/* Animated icon */}
-          <div className="text-4xl mb-4 animate-bounce">{step.icon}</div>
-
-          {/* Percentage */}
-          <p className="text-text text-3xl font-bold tabular-nums mb-1">{pct}%</p>
+          {/* Pulsing scan ring */}
+          <div className="relative w-20 h-20 mx-auto mb-5">
+            <svg className="w-20 h-20 -rotate-90" viewBox="0 0 72 72">
+              <circle cx="36" cy="36" r="30" fill="none" stroke="currentColor" strokeWidth="3" className="text-surface2" />
+              <circle
+                cx="36" cy="36" r="30" fill="none" strokeWidth="3"
+                className="text-accent"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeDasharray={`${progress * 1.885} 188.5`}
+                style={{ transition: 'stroke-dasharray 0.3s ease-out' }}
+              />
+            </svg>
+            <span className="absolute inset-0 flex items-center justify-center text-text text-lg font-semibold tabular-nums">
+              {pct}%
+            </span>
+          </div>
 
           {/* Step label */}
           <p className="text-text text-sm font-medium mb-1">{step.label}</p>
@@ -483,11 +494,11 @@ function ScanningProgress({ pageCount }) {
             Processing {pageCount} {pageCount === 1 ? 'page' : 'pages'}
           </p>
 
-          {/* Progress bar */}
+          {/* Thin progress bar */}
           <div className="mt-5 mx-auto max-w-xs">
-            <div className="h-2 bg-surface2 rounded-full overflow-hidden">
+            <div className="h-1 bg-surface2 rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-accent to-blue-400 rounded-full transition-all duration-300 ease-out"
+                className="h-full bg-accent rounded-full transition-all duration-300 ease-out"
                 style={{ width: `${progress}%` }}
               />
             </div>
