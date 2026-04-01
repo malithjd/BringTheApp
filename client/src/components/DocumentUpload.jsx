@@ -268,6 +268,9 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
           Scan All Documents ({readyCount})
         </button>
 
+        {/* Privacy disclaimer */}
+        <PrivacyDisclaimer />
+
         {/* Error display */}
         {error && (
           <div className="bg-red/10 border border-red/30 rounded-xl p-4 text-sm">
@@ -421,6 +424,9 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
         </div>
       )}
 
+      {/* Privacy disclaimer */}
+      <PrivacyDisclaimer />
+
       {/* Manual entry link */}
       <div className="text-center pt-1">
         <button
@@ -430,6 +436,20 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
           or enter deal details manually
         </button>
       </div>
+    </div>
+  );
+}
+
+// ---- Privacy & data disclaimer ----
+function PrivacyDisclaimer() {
+  return (
+    <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-surface2/50 border border-border/50">
+      <svg className="w-4 h-4 text-text2 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+      </svg>
+      <p className="text-text2 text-[11px] leading-relaxed">
+        <span className="font-medium text-text2/90">Your privacy matters.</span> Documents are processed by AI to extract deal data, then immediately discarded. We do not store, share, or sell your images or personal information. No data is retained after your session.
+      </p>
     </div>
   );
 }
