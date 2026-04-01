@@ -7,7 +7,7 @@ import { getMakes, getModels, getTrims, decodeVin, getTax, getFees, analyzeDeal 
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 16 }, (_, i) => CURRENT_YEAR + 1 - i);
-const TERMS = [24, 36, 48, 60, 72, 84];
+const TERMS = [0, 24, 36, 48, 60, 72, 84];
 const CREDIT_TIERS = [
   { value: 'excellent', label: 'Excellent', apr: 4.5 },
   { value: 'very-good', label: 'Very Good', apr: 6.0 },
@@ -64,7 +64,7 @@ export default function FormView({ initialData, onAnalysisComplete }) {
   const [customAddonName, setCustomAddonName] = useState(null);
   const [errors, setErrors] = useState({});
   const [expandedSections, setExpandedSections] = useState({
-    vehicle: true, deal: true, financing: true, addons: false,
+    vehicle: true, deal: true, addons: false, financing: false,
   });
   const [ocrFilled, setOcrFilled] = useState(false);
 
@@ -228,8 +228,8 @@ export default function FormView({ initialData, onAnalysisComplete }) {
         down: parseFloat(form.down) || 0,
         tradeIn: form.hasTradeIn ? parseFloat(form.tradeIn) || 0 : 0,
         tradeOwed: form.hasTradeIn ? parseFloat(form.tradeOwed) || 0 : 0,
-        apr: parseFloat(form.apr) || 0,
-        term: parseInt(form.term) || 60,
+        apr: form.term === 0 ? 0 : (parseFloat(form.apr) || 0),
+        term: parseInt(form.term) || 0,
         creditTier: form.creditTier,
         docFee: parseFloat(form.docFee) || 0,
         regFee: parseFloat(form.regFee) || 0,
@@ -460,65 +460,7 @@ export default function FormView({ initialData, onAnalysisComplete }) {
         </div>
       </Section>
 
-      {/* Section 3: Financing */}
-      <Section title="Financing" expanded={expandedSections.financing} onToggle={() => toggleSection('financing')}>
-        <label className="block text-sm text-text2 mb-2">Credit Score</label>
-        <div className="flex gap-1.5 flex-wrap mb-4">
-          {CREDIT_TIERS.map(tier => (
-            <button
-              key={tier.value}
-              onClick={() => handleCreditTier(tier.value)}
-              className={`px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
-                form.creditTier === tier.value
-                  ? 'bg-accent text-white'
-                  : 'bg-surface2 text-text2 hover:text-text'
-              }`}
-            >
-              {tier.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm text-text2 mb-1">
-              APR %
-              {form.aprAuto && <span className="ml-1 text-xs bg-accent/20 text-accent px-1.5 py-0.5 rounded">Auto</span>}
-            </label>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={form.aprDisplay ?? form.apr}
-              onFocus={() => set('aprDisplay', String(form.apr))}
-              onChange={(e) => {
-                const raw = e.target.value.replace(/[^0-9.]/g, '');
-                set('aprDisplay', raw);
-                const num = parseFloat(raw);
-                if (!isNaN(num)) set('apr', num);
-                set('aprAuto', false);
-              }}
-              onBlur={() => {
-                set('aprDisplay', undefined);
-              }}
-              className="w-full bg-surface2 text-text rounded-lg px-3 py-3 text-[16px] border border-border focus:border-accent focus:outline-none"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-text2 mb-1">Loan Term</label>
-            <select
-              value={form.term}
-              onChange={(e) => set('term', parseInt(e.target.value))}
-              className="w-full bg-surface2 text-text rounded-lg px-3 py-3 text-[16px] border border-border focus:border-accent focus:outline-none"
-            >
-              {TERMS.map(t => (
-                <option key={t} value={t}>{t} months</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </Section>
-
-      {/* Section 4: Add-ons */}
+      {/* Section 3: Add-ons (near fees — user may want to check price + add-ons without financing) */}
       <Section title="Add-ons" expanded={expandedSections.addons} onToggle={() => toggleSection('addons')} badge={form.addons.filter(a => a.enabled).length || null}>
         <div className="space-y-2">
           {form.addons.map((addon, i) => (
@@ -617,9 +559,87 @@ export default function FormView({ initialData, onAnalysisComplete }) {
         )}
       </Section>
 
-      {/* Submit */}
+      {/* Section 4: Financing (at the bottom — optional for cash buyers) */}
+      <Section title="Financing (optional)" expanded={expandedSections.financing} onToggle={() => toggleSection('financing')}>
+        <label className="block text-sm text-text2 mb-2">Credit Score</label>
+        <div className="flex gap-1.5 flex-wrap mb-4">
+          {CREDIT_TIERS.map(tier => (
+            <button
+              key={tier.value}
+              onClick={() => handleCreditTier(tier.value)}
+              className={`px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                form.creditTier === tier.value
+                  ? 'bg-accent text-white'
+                  : 'bg-surface2 text-text2 hover:text-text'
+              }`}
+            >
+              {tier.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm text-text2 mb-1">
+              APR %
+              {form.aprAuto && <span className="ml-1 text-xs bg-accent/20 text-accent px-1.5 py-0.5 rounded">Auto</span>}
+            </label>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={form.aprDisplay ?? form.apr}
+              onFocus={() => set('aprDisplay', String(form.apr))}
+              onChange={(e) => {
+                const raw = e.target.value.replace(/[^0-9.]/g, '');
+                set('aprDisplay', raw);
+                const num = parseFloat(raw);
+                if (!isNaN(num)) set('apr', num);
+                set('aprAuto', false);
+              }}
+              onBlur={() => {
+                set('aprDisplay', undefined);
+              }}
+              className="w-full bg-surface2 text-text rounded-lg px-3 py-3 text-[16px] border border-border focus:border-accent focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-text2 mb-1">Loan Term</label>
+            <select
+              value={form.term}
+              onChange={(e) => set('term', parseInt(e.target.value))}
+              className="w-full bg-surface2 text-text rounded-lg px-3 py-3 text-[16px] border border-border focus:border-accent focus:outline-none"
+            >
+              {TERMS.map(t => (
+                <option key={t} value={t}>{t === 0 ? 'Cash — No Loan' : `${t} months`}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        {form.term === 0 && (
+          <p className="text-xs text-green mt-2 flex items-center gap-1">
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd"/></svg>
+            Cash deal — no interest charges. APR & term scoring will auto-max.
+          </p>
+        )}
+      </Section>
+
+      {/* Validation errors above submit button */}
+      {Object.keys(errors).filter(k => k !== 'submit').length > 0 && (
+        <div className="bg-red/10 border border-red/30 rounded-xl p-3 mb-3">
+          <p className="text-red text-sm font-semibold mb-1">Missing required fields:</p>
+          <ul className="space-y-0.5">
+            {Object.entries(errors).filter(([k]) => k !== 'submit').map(([key, msg]) => (
+              <li key={key} className="text-red text-xs flex items-center gap-1.5">
+                <span className="w-1 h-1 rounded-full bg-red flex-shrink-0" />
+                {msg}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {errors.submit && (
-        <div className="bg-red/10 border border-red/30 rounded-xl p-3 mb-4 text-sm text-red">
+        <div className="bg-red/10 border border-red/30 rounded-xl p-3 mb-3 text-sm text-red">
           {errors.submit}
         </div>
       )}

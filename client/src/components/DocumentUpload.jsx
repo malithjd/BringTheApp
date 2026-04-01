@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { extractDocuments } from '../lib/api';
 import { preprocessImage, isPDF, getPDFThumbnailUrl } from '../lib/imageUtils';
 
@@ -180,21 +180,7 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
 
   // ========== SCANNING STATE ==========
   if (scanning) {
-    return (
-      <div className="space-y-4">
-        <div className="border-2 border-dashed border-border rounded-xl p-8 text-center">
-          <div className="py-8">
-            <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-text text-lg font-medium">
-              Analyzing your documents...
-            </p>
-            <p className="text-text2 text-sm mt-2">
-              Scanning {readyCount} {readyCount === 1 ? 'page' : 'pages'}... Extracting deal details
-            </p>
-          </div>
-        </div>
-      </div>
-    );
+    return <ScanningProgress pageCount={readyCount} />;
   }
 
   // ========== HAS ITEMS STATE ==========
@@ -439,6 +425,74 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
         >
           or enter deal details manually
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ---- Animated scanning progress component ----
+const SCAN_STEPS = [
+  { label: 'Reading document pages...', icon: '📄', target: 15 },
+  { label: 'Detecting text & tables...', icon: '🔍', target: 35 },
+  { label: 'Extracting vehicle info...', icon: '🚗', target: 55 },
+  { label: 'Extracting pricing & fees...', icon: '💰', target: 75 },
+  { label: 'Cross-referencing data...', icon: '🔗', target: 90 },
+  { label: 'Finalizing extraction...', icon: '✨', target: 98 },
+];
+
+function ScanningProgress({ pageCount }) {
+  const [progress, setProgress] = useState(0);
+  const [stepIdx, setStepIdx] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setProgress((prev) => {
+        const currentStep = SCAN_STEPS[stepIdx];
+        const target = currentStep?.target || 98;
+        if (prev >= target) {
+          if (stepIdx < SCAN_STEPS.length - 1) {
+            setStepIdx((s) => s + 1);
+          }
+          return Math.min(prev + 0.2, 99);
+        }
+        // Ease toward target — faster early, slower near target
+        const remaining = target - prev;
+        const increment = Math.max(0.3, remaining * 0.08);
+        return Math.min(prev + increment, 99);
+      });
+    }, 120);
+    return () => clearInterval(interval);
+  }, [stepIdx]);
+
+  const step = SCAN_STEPS[stepIdx] || SCAN_STEPS[SCAN_STEPS.length - 1];
+  const pct = Math.round(progress);
+
+  return (
+    <div className="space-y-4">
+      <div className="border-2 border-accent/30 rounded-xl p-8 text-center bg-accent/5">
+        <div className="py-4">
+          {/* Animated icon */}
+          <div className="text-4xl mb-4 animate-bounce">{step.icon}</div>
+
+          {/* Percentage */}
+          <p className="text-text text-3xl font-bold tabular-nums mb-1">{pct}%</p>
+
+          {/* Step label */}
+          <p className="text-text text-sm font-medium mb-1">{step.label}</p>
+          <p className="text-text2 text-xs">
+            Processing {pageCount} {pageCount === 1 ? 'page' : 'pages'}
+          </p>
+
+          {/* Progress bar */}
+          <div className="mt-5 mx-auto max-w-xs">
+            <div className="h-2 bg-surface2 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-accent to-blue-400 rounded-full transition-all duration-300 ease-out"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
