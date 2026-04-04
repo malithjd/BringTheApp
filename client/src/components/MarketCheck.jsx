@@ -1,7 +1,64 @@
 import { formatCurrency } from '../lib/format';
 
+function PriceBar({ label, subtitle, reference, low, high, userPrice }) {
+  if (reference == null) return null;
+
+  const range = high - low;
+  const position = range > 0 ? Math.max(0, Math.min(100, ((userPrice - low) / range) * 100)) : 50;
+  const diff = userPrice - reference;
+  const ratio = userPrice / reference;
+
+  let color = 'var(--color-green)';
+  let statusText = 'Within range';
+  if (ratio > 1.15) {
+    color = 'var(--color-red)';
+    statusText = `${formatCurrency(diff)} above`;
+  } else if (ratio > 1.05) {
+    color = 'var(--color-amber)';
+    statusText = `${formatCurrency(diff)} above`;
+  } else if (ratio < 0.95) {
+    color = 'var(--color-green)';
+    statusText = `${formatCurrency(Math.abs(diff))} below`;
+  }
+
+  return (
+    <div className="mb-5 last:mb-0">
+      <div className="flex items-baseline justify-between mb-2">
+        <div>
+          <p className="text-sm font-medium text-text">{label}</p>
+          {subtitle && <p className="text-[11px] text-text2">{subtitle}</p>}
+        </div>
+        <span className="text-sm font-semibold" style={{ color }}>{formatCurrency(reference)}</span>
+      </div>
+
+      {/* Bar */}
+      <div className="relative h-2.5 bg-surface2 rounded-full overflow-visible">
+        <div className="absolute inset-0 rounded-full" style={{ background: `${color}15` }} />
+        <div
+          className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full"
+          style={{ left: `${position}%`, backgroundColor: color, boxShadow: `0 0 6px ${color}` }}
+        />
+      </div>
+      <div className="flex justify-between text-[10px] text-text2 mt-1">
+        <span>{formatCurrency(low)}</span>
+        <span>{formatCurrency(high)}</span>
+      </div>
+      <p className="text-xs font-medium mt-1" style={{ color }}>
+        Your price: {formatCurrency(userPrice)} — {statusText}
+      </p>
+    </div>
+  );
+}
+
 export default function MarketCheck({ vehicle, market, price }) {
-  if (!market?.estimated) {
+  const calc = market?.calculated;
+  const listings = market?.listings;
+  const isNew = vehicle.condition === 'new';
+
+  const hasCalc = calc?.estimated != null;
+  const hasListings = listings?.enabled !== false && listings?.avgPrice != null;
+
+  if (!hasCalc && !hasListings) {
     return (
       <div className="bg-surface border border-border rounded-xl p-4 animate-fade-up">
         <h3 className="font-semibold text-text mb-2">Market Check</h3>
@@ -10,105 +67,112 @@ export default function MarketCheck({ vehicle, market, price }) {
     );
   }
 
-  const isNew = vehicle.condition === 'new';
-  const priceRatio = price / market.estimated;
-  const diff = price - market.estimated;
-  const barMin = market.low;
-  const barMax = market.high;
-  const barRange = barMax - barMin;
-
-  // Position of user's price on the bar (clamped to 0-100%)
-  const pricePosition = Math.max(0, Math.min(100, ((price - barMin) / barRange) * 100));
-
-  let statusColor = 'var(--color-green)';
-  let statusText = 'Within market range';
-  if (priceRatio > 1.15) {
-    statusColor = 'var(--color-red)';
-    statusText = `${formatCurrency(diff)} above market`;
-  } else if (priceRatio > 1.05) {
-    statusColor = 'var(--color-amber)';
-    statusText = `${formatCurrency(diff)} above estimated value`;
-  } else if (priceRatio < 0.95) {
-    statusColor = 'var(--color-green)';
-    statusText = `${formatCurrency(Math.abs(diff))} below market — great price`;
-  }
-
   return (
     <div className="bg-surface border border-border rounded-xl p-4 animate-fade-up">
       <h3 className="font-semibold text-text mb-4">Market Check</h3>
 
-      {isNew ? (
-        <div className="space-y-3 text-sm">
-          <div className="flex justify-between">
-            <span className="text-text2">Base MSRP ({vehicle.year} {vehicle.make} {vehicle.model})</span>
-            <span className="text-text font-medium">{formatCurrency(market.baseMsrp)}</span>
-          </div>
-          {market.matchedTrim && (
-            <div className="flex justify-between">
-              <span className="text-text2">Matched Trim</span>
-              <span className="text-text">{market.matchedTrim}</span>
-            </div>
+      {/* Info rows */}
+      {hasCalc && (
+        <div className="space-y-2 text-sm mb-4">
+          {isNew ? (
+            <>
+              <div className="flex justify-between">
+                <span className="text-text2">Base MSRP ({vehicle.year} {vehicle.make} {vehicle.model})</span>
+                <span className="text-text font-medium">{formatCurrency(calc.baseMsrp)}</span>
+              </div>
+              {calc.matchedTrim && (
+                <div className="flex justify-between">
+                  <span className="text-text2">Matched Trim</span>
+                  <span className="text-text">{calc.matchedTrim}</span>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="flex justify-between">
+                <span className="text-text2">Original MSRP</span>
+                <span className="text-text font-medium">{formatCurrency(calc.baseMsrp)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text2">Age / Depreciation</span>
+                <span className="text-text">{calc.age}yr — {Math.round((1 - calc.depFactor) * 100)}% depreciated</span>
+              </div>
+            </>
           )}
-          <div className="flex justify-between">
-            <span className="text-text2">Typical Range</span>
-            <span className="text-text">{formatCurrency(market.low)} – {formatCurrency(market.high)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-text2">Your Price</span>
-            <span className="font-semibold" style={{ color: statusColor }}>{formatCurrency(price)}</span>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-3 text-sm">
-          <div className="flex justify-between">
-            <span className="text-text2">Original MSRP</span>
-            <span className="text-text font-medium">{formatCurrency(market.baseMsrp)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-text2">Estimated Value ({market.age}yr, {vehicle.mileage ? `${Number(vehicle.mileage).toLocaleString()} mi` : 'avg miles'})</span>
-            <span className="text-text font-medium">{formatCurrency(market.estimated)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-text2">Market Range</span>
-            <span className="text-text">{formatCurrency(market.low)} – {formatCurrency(market.high)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-text2">Your Price</span>
-            <span className="font-semibold" style={{ color: statusColor }}>{formatCurrency(price)}</span>
-          </div>
         </div>
       )}
 
-      {/* Visual bar */}
-      <div className="mt-4">
-        <div className="relative h-3 bg-surface2 rounded-full overflow-hidden">
-          {/* Market range */}
-          <div className="absolute inset-0 bg-green/20 rounded-full" />
-          {/* Price indicator */}
-          <div
-            className="absolute top-0 h-full w-1 rounded-full"
-            style={{
-              left: `${pricePosition}%`,
-              backgroundColor: statusColor,
-              boxShadow: `0 0 8px ${statusColor}`,
-            }}
-          />
-        </div>
-        <div className="flex justify-between text-[10px] text-text2 mt-1">
-          <span>{formatCurrency(barMin)}</span>
-          <span>{formatCurrency(barMax)}</span>
-        </div>
-      </div>
+      {/* Bar 1: Calculated Fair Value */}
+      {hasCalc && (
+        <PriceBar
+          label="Calculated Fair Value"
+          subtitle={isNew ? 'Based on MSRP data' : 'Based on MSRP + depreciation model'}
+          reference={calc.estimated}
+          low={calc.low}
+          high={calc.high}
+          userPrice={price}
+        />
+      )}
 
-      <p className="mt-3 text-sm font-medium" style={{ color: statusColor }}>
-        {statusText}
-      </p>
+      {/* Bar 2: Market Average from Auto.dev */}
+      {hasListings && (
+        <PriceBar
+          label="Market Average"
+          subtitle={`From ${listings.listingCount} similar listing${listings.listingCount !== 1 ? 's' : ''}`}
+          reference={listings.avgPrice}
+          low={listings.priceRange?.low || listings.avgPrice * 0.85}
+          high={listings.priceRange?.high || listings.avgPrice * 1.15}
+          userPrice={price}
+        />
+      )}
 
-      {market.allTrims && Object.keys(market.allTrims).length > 1 && (
+      {/* Loading indicator for listings */}
+      {listings === null && (
+        <div className="flex items-center gap-2 text-text2 text-sm py-2">
+          <div className="w-3.5 h-3.5 border-2 border-text2/30 border-t-accent rounded-full animate-spin" />
+          Looking up similar listings...
+        </div>
+      )}
+
+      {/* Sample Listings */}
+      {hasListings && listings.sampleListings?.length > 0 && (
+        <details className="mt-3">
+          <summary className="text-sm text-accent cursor-pointer hover:text-accent-hover font-medium">
+            View {listings.listingCount} similar listing{listings.listingCount !== 1 ? 's' : ''}
+          </summary>
+          <div className="mt-2 space-y-2">
+            {listings.sampleListings.map((l, i) => (
+              <div key={i} className="flex items-center justify-between bg-surface2 rounded-lg px-3 py-2 text-sm">
+                <div>
+                  <p className="text-text font-medium">{formatCurrency(l.price)}</p>
+                  <p className="text-text2 text-xs">
+                    {l.mileage ? `${Number(l.mileage).toLocaleString()} mi` : 'N/A mi'}
+                    {l.trim ? ` — ${l.trim}` : ''}
+                    {l.city ? ` — ${l.city}, ${l.state}` : ''}
+                  </p>
+                </div>
+                {l.listingUrl && (
+                  <a
+                    href={l.listingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-accent text-xs hover:text-accent-hover flex-shrink-0 ml-2"
+                  >
+                    View
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
+      {/* Trim details */}
+      {hasCalc && calc.allTrims && Object.keys(calc.allTrims).length > 1 && (
         <details className="mt-3">
           <summary className="text-xs text-text2 cursor-pointer hover:text-text">View all trim MSRPs</summary>
           <div className="mt-2 space-y-1 text-xs">
-            {Object.entries(market.allTrims).map(([trim, msrp]) => (
+            {Object.entries(calc.allTrims).map(([trim, msrp]) => (
               <div key={trim} className="flex justify-between text-text2">
                 <span>{trim}</span>
                 <span>{formatCurrency(msrp)}</span>
@@ -119,7 +183,8 @@ export default function MarketCheck({ vehicle, market, price }) {
       )}
 
       <p className="text-[10px] text-text2 mt-3">
-        {isNew ? 'MSRP data from manufacturer published pricing' : 'Estimated using depreciation model from original MSRP'}
+        {isNew ? 'MSRP data from manufacturer published pricing' : 'Fair value estimated using depreciation model from original MSRP'}
+        {hasListings ? ' — Market data from live dealer listings' : ''}
       </p>
     </div>
   );

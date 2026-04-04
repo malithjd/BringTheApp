@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { FEATURES } from '../config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
@@ -649,7 +650,11 @@ router.post('/', async (req, res) => {
         totalInterest,
         totalPaid: Math.round(totalPaid * 100) / 100,
       },
-      market,
+      market: {
+        calculated: market,
+        listings: null, // populated client-side via /api/market/listings
+      },
+      features: FEATURES,
       flags,
       scripts,
     });

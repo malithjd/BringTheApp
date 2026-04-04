@@ -582,7 +582,12 @@ function mapToFormFields(extracted) {
   // Vehicle basics
   if (extracted.vehicle) {
     const v = extracted.vehicle;
-    if (v.vin) f.vin = v.vin;
+    if (v.vin) {
+      const cleaned = v.vin.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      if (cleaned.length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(cleaned)) {
+        f.vin = cleaned;
+      }
+    }
     if (v.year) f.year = String(v.year);
     if (v.make) f.make = v.make;
     if (v.model) f.model = v.model;
@@ -780,7 +785,12 @@ function parseOcrText(text) {
   const fullText = lines.join(' ');
 
   const vinMatch = fullText.match(/\b([A-HJ-NPR-Z0-9]{17})\b/i);
-  if (vinMatch) fields.vin = vinMatch[1].toUpperCase();
+  if (vinMatch) {
+    const cleaned = vinMatch[1].replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    if (cleaned.length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(cleaned)) {
+      fields.vin = cleaned;
+    }
+  }
 
   const yearMatch = fullText.match(/\b(20[1-2]\d)\b/);
   if (yearMatch) fields.year = yearMatch[1];

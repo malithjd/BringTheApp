@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ScoreGauge from '../components/ScoreGauge';
 import DealSummary from '../components/DealSummary';
 import MarketCheck from '../components/MarketCheck';
 import FlagsPanel from '../components/FlagsPanel';
 import FeeBreakdown from '../components/FeeBreakdown';
 import NegotiationTips from '../components/NegotiationTips';
+import { getMarketListings, getVehiclePhoto } from '../lib/api';
 
 function buildEmailBody(result) {
   const v = result.vehicle || {};
@@ -42,6 +43,26 @@ function buildEmailBody(result) {
 
 export default function ResultsView({ dealData, result, onEditDeal, onNewDeal }) {
   const [emailSent, setEmailSent] = useState(false);
+  const [listings, setListings] = useState(null);
+  const [photoUrl, setPhotoUrl] = useState(null);
+
+  // Fetch market listings + vehicle photo asynchronously after results load
+  useEffect(() => {
+    if (!result?.vehicle) return;
+    const v = result.vehicle;
+
+    if (result.features?.marketListings) {
+      getMarketListings(v.year, v.make, v.model, v.mileage)
+        .then(data => { if (data.enabled !== false) setListings(data); })
+        .catch(() => {});
+    }
+
+    if (result.features?.vehiclePhotos) {
+      getVehiclePhoto(v.year, v.make, v.model, v.trim)
+        .then(data => { if (data.photoUrl) setPhotoUrl(data.photoUrl); })
+        .catch(() => {});
+    }
+  }, [result]);
 
   if (!result) return null;
 
@@ -61,6 +82,7 @@ export default function ResultsView({ dealData, result, onEditDeal, onNewDeal })
         score={result.score}
         label={result.label}
         vehicle={result.vehicle}
+        photoUrl={photoUrl}
       />
 
       {/* Panel 2: Deal Summary */}
@@ -72,7 +94,7 @@ export default function ResultsView({ dealData, result, onEditDeal, onNewDeal })
       {/* Panel 3: Market Check */}
       <MarketCheck
         vehicle={result.vehicle}
-        market={result.market}
+        market={{ ...result.market, listings }}
         price={result.entered.price}
       />
 

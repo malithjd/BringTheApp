@@ -143,10 +143,11 @@ export default function FormView({ initialData, onAnalysisComplete }) {
     }
   }, [form.zip]);
 
-  // VIN decode
-  const handleVinChange = async (vin) => {
+  // VIN decode — clean spaces/special chars before validation
+  const handleVinChange = async (rawVin) => {
+    const vin = rawVin.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
     set('vin', vin);
-    if (vin.length === 17) {
+    if (vin.length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) {
       try {
         const data = await decodeVin(vin);
         if (data.year) set('year', data.year);
@@ -174,7 +175,12 @@ export default function FormView({ initialData, onAnalysisComplete }) {
     if (fields.make) updates.make = fields.make;
     if (fields.model) updates.model = fields.model;
     if (fields.trim) updates.trim = fields.trim;
-    if (fields.vin) updates.vin = fields.vin;
+    if (fields.vin) {
+      const cleaned = fields.vin.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      if (cleaned.length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(cleaned)) {
+        updates.vin = cleaned;
+      }
+    }
     if (fields.condition) updates.condition = fields.condition;
     if (fields.mileage) updates.mileage = fields.mileage;
     if (fields.price) updates.price = fields.price;
@@ -641,16 +647,37 @@ export default function FormView({ initialData, onAnalysisComplete }) {
                 />
               </div>
               <div>
-                <label className="block text-sm text-text2 mb-1">Loan Term</label>
-                <select
-                  value={form.term}
-                  onChange={(e) => set('term', parseInt(e.target.value))}
-                  className="w-full bg-surface2 text-text rounded-lg px-3 py-3 text-[16px] border border-border focus:border-accent focus:outline-none"
-                >
+                <label className="block text-sm text-text2 mb-1">Loan Term (months)</label>
+                <div className="flex flex-wrap gap-1.5 mb-2">
                   {TERMS.map(t => (
-                    <option key={t} value={t}>{t} months</option>
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => set('term', t)}
+                      className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${
+                        form.term === t
+                          ? 'bg-accent text-white border-accent'
+                          : 'bg-surface2 text-text2 border-border hover:border-accent'
+                      }`}
+                    >
+                      {t}
+                    </button>
                   ))}
-                </select>
+                </div>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min="1"
+                  max="120"
+                  value={form.term}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    if (!isNaN(val) && val >= 1 && val <= 120) set('term', val);
+                    else if (e.target.value === '') set('term', '');
+                  }}
+                  placeholder="Custom (1-120)"
+                  className="w-full bg-surface2 text-text rounded-lg px-3 py-2.5 text-[16px] border border-border focus:border-accent focus:outline-none"
+                />
               </div>
             </div>
           </>
