@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { FEATURES } from '../config.js';
+import { getFeatures } from '../config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
@@ -654,7 +654,7 @@ router.post('/', async (req, res) => {
         calculated: market,
         listings: null, // populated client-side via /api/market/listings
       },
-      features: FEATURES,
+      features: getFeatures(),
       flags,
       scripts,
     });

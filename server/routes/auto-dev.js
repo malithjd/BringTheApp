@@ -4,7 +4,8 @@ import { isEnabled } from '../config.js';
 const router = Router();
 
 const AUTO_DEV_BASE = 'https://api.auto.dev';
-const API_KEY = process.env.AUTO_DEV_API_KEY;
+// Read lazily — dotenv.config() in index.js runs after ESM imports resolve
+function getApiKey() { return process.env.AUTO_DEV_API_KEY; }
 
 // ---------------------------------------------------------------------------
 // Simple TTL cache (30 min default)
@@ -55,7 +56,7 @@ const limiter = new RateLimiter(5);
 // Auto.dev fetch helper
 // ---------------------------------------------------------------------------
 async function autoDevFetch(path, params = {}) {
-  if (!API_KEY) return null;
+  if (!getApiKey()) return null;
   await limiter.acquire();
 
   const url = new URL(path, AUTO_DEV_BASE);
@@ -68,7 +69,7 @@ async function autoDevFetch(path, params = {}) {
 
   try {
     const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${API_KEY}` },
+      headers: { Authorization: `Bearer ${getApiKey()}` },
       signal: controller.signal,
     });
     clearTimeout(timeout);
@@ -97,8 +98,8 @@ function mileageBucket(m) {
 // Returns avg price, listing count, sample listings for similar vehicles
 // ---------------------------------------------------------------------------
 router.get('/listings', async (req, res) => {
-  if (!isEnabled('marketListings') || !API_KEY) {
-    return res.json({ enabled: false, reason: !API_KEY ? 'not_configured' : 'disabled' });
+  if (!isEnabled('marketListings') || !getApiKey()) {
+    return res.json({ enabled: false, reason: !getApiKey() ? 'not_configured' : 'disabled' });
   }
 
   const { year, make, model, mileage } = req.query;
@@ -126,7 +127,9 @@ router.get('/listings', async (req, res) => {
       limit: 50,
     });
 
-    if (!data || !Array.isArray(data.listings) || data.listings.length === 0) {
+    // Auto.dev response: { data: [...listings], links: {...}, api: {...} }
+    const allListings = data?.data || data?.listings || [];
+    if (!Array.isArray(allListings) || allListings.length === 0) {
       const empty = {
         enabled: true,
         avgPrice: null,
@@ -139,29 +142,39 @@ router.get('/listings', async (req, res) => {
       return res.json(empty);
     }
 
-    // Extract prices — use retailListing.price (asking/listing price, before dealer fees)
-    const listings = data.listings.filter(l => l.retailListing?.price > 0);
-    const prices = listings.map(l => l.retailListing.price).sort((a, b) => a - b);
+    // Free tier doesn't include listing prices — use vehicle.baseMsrp as reference
+    // Filter to listings with retail data
+    const listings = allListings.filter(l => l.retailListing);
 
-    const avg = Math.round(prices.reduce((s, p) => s + p, 0) / prices.length);
-    const median = prices.length % 2 === 0
-      ? Math.round((prices[prices.length / 2 - 1] + prices[prices.length / 2]) / 2)
-      : prices[Math.floor(prices.length / 2)];
+    // Try to get prices: retailListing.price (paid tier) or vehicle.baseMsrp (free tier reference)
+    const withPrices = listings.filter(l => l.retailListing?.price > 0);
+    const prices = withPrices.length > 0
+      ? withPrices.map(l => l.retailListing.price).sort((a, b) => a - b)
+      : null;
 
-    // Pick 5 representative samples spread across the price range
+    const avg = prices ? Math.round(prices.reduce((s, p) => s + p, 0) / prices.length) : null;
+    const median = prices
+      ? (prices.length % 2 === 0
+        ? Math.round((prices[prices.length / 2 - 1] + prices[prices.length / 2]) / 2)
+        : prices[Math.floor(prices.length / 2)])
+      : null;
+
+    // Pick up to 5 representative samples
     const samples = [];
     const step = Math.max(1, Math.floor(listings.length / 5));
     for (let i = 0; i < listings.length && samples.length < 5; i += step) {
       const l = listings[i];
+      const rl = l.retailListing || {};
       samples.push({
-        price: l.retailListing.price,
-        mileage: l.retailListing.miles || null,
-        dealer: l.retailListing.dealerName || null,
-        city: l.retailListing.city || null,
-        state: l.retailListing.state || null,
-        photoUrl: l.retailListing.photoUrl || l.retailListing.primaryPhotoUrl || null,
-        listingUrl: l.retailListing.listingUrl || l.retailListing.url || null,
+        price: rl.price || null,
+        mileage: rl.miles || null,
+        dealer: rl.dealer || rl.dealerName || null,
+        city: rl.city || null,
+        state: rl.state || null,
+        photoUrl: rl.primaryImage || rl.photoUrl || rl.primaryPhotoUrl || null,
+        listingUrl: rl.vdp || rl.listingUrl || rl.url || null,
         trim: l.vehicle?.trim || null,
+        baseMsrp: l.vehicle?.baseMsrp || null,
       });
     }
 
@@ -169,8 +182,8 @@ router.get('/listings', async (req, res) => {
       enabled: true,
       avgPrice: avg,
       medianPrice: median,
-      listingCount: prices.length,
-      priceRange: { low: prices[0], high: prices[prices.length - 1] },
+      listingCount: listings.length,
+      priceRange: prices ? { low: prices[0], high: prices[prices.length - 1] } : null,
       sampleListings: samples,
     };
 
@@ -187,7 +200,7 @@ router.get('/listings', async (req, res) => {
 // Returns a photo URL for the vehicle
 // ---------------------------------------------------------------------------
 router.get('/photo', async (req, res) => {
-  if (!isEnabled('vehiclePhotos') || !API_KEY) {
+  if (!isEnabled('vehiclePhotos') || !getApiKey()) {
     return res.json({ enabled: false, photoUrl: null });
   }
 
@@ -212,13 +225,12 @@ router.get('/photo', async (req, res) => {
     const data = await autoDevFetch('/listings', params);
 
     let photoUrl = null;
-    if (data?.listings?.length > 0) {
-      for (const l of data.listings) {
-        const url = l.retailListing?.photoUrl || l.retailListing?.primaryPhotoUrl;
-        if (url) {
-          photoUrl = url;
-          break;
-        }
+    const photoListings = data?.data || data?.listings || [];
+    for (const l of photoListings) {
+      const url = l.retailListing?.primaryImage || l.retailListing?.photoUrl || l.retailListing?.primaryPhotoUrl;
+      if (url) {
+        photoUrl = url;
+        break;
       }
     }
 
