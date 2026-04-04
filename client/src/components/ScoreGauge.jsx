@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-export default function ScoreGauge({ score, label, vehicle }) {
+export default function ScoreGauge({ score, label, vehicle, photoUrl }) {
   const [animatedScore, setAnimatedScore] = useState(0);
 
   useEffect(() => {
@@ -80,6 +80,15 @@ export default function ScoreGauge({ score, label, vehicle }) {
             {vehicle.condition === 'new' ? 'New' : 'Used'}
           </span>
         </p>
+      )}
+
+      {photoUrl && (
+        <img
+          src={photoUrl}
+          alt={`${vehicle?.year} ${vehicle?.make} ${vehicle?.model}`}
+          className="mt-4 rounded-lg w-full max-h-48 object-cover"
+          onError={(e) => { e.target.style.display = 'none'; }}
+        />
       )}
     </div>
   );

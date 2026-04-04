@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { FEATURES } from '../config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
@@ -532,6 +533,11 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields: price, zip, year, make, model, condition' });
     }
 
+    // Auto-correct condition: a car 2+ years old cannot be "new"
+    const currentYear = new Date().getFullYear();
+    const vehicleAge = currentYear - parseInt(year);
+    const effectiveCondition = (vehicleAge >= 2 && condition === 'new') ? 'used' : condition;
+
     // Get state from ZIP
     const { zipToState } = await import('./tax.js');
     const zipPrefix = Math.floor(parseInt(zip, 10) / 100);
@@ -577,10 +583,7 @@ router.post('/', async (req, res) => {
     const totalPaid = effectiveTerm > 0 ? Math.round(monthlyPayment * effectiveTerm * 100) / 100 : Math.round(totalCost * 100) / 100;
     const totalInterest = effectiveTerm > 0 ? Math.round((totalPaid - loanAmount) * 100) / 100 : 0;
 
-    // Market estimation — auto-correct condition for old vehicles
-    const currentYear = new Date().getFullYear();
-    const vehicleAge = currentYear - parseInt(year);
-    const effectiveCondition = (vehicleAge >= 2 && condition === 'new') ? 'used' : condition;
+    // Market estimation
     const market = estimateMarketValue(make, model, parseInt(year), trim, effectiveCondition, mileage);
 
     // Build the deal object with computed values for scoring
@@ -599,7 +602,7 @@ router.post('/', async (req, res) => {
       taxAmount,
       totalInterest,
       creditTier: creditTier || 'good',
-      condition,
+      condition: effectiveCondition,
       addons: addons || [],
     };
 
@@ -619,7 +622,7 @@ router.post('/', async (req, res) => {
       score: scoring.score,
       label: scoring.label,
       factors: scoring.factors,
-      vehicle: { year, make, model, trim, condition, mileage },
+      vehicle: { year, make, model, trim, condition: effectiveCondition, mileage },
       entered: {
         price: parseFloat(price),
         down: parseFloat(down) || 0,
@@ -647,7 +650,11 @@ router.post('/', async (req, res) => {
         totalInterest,
         totalPaid: Math.round(totalPaid * 100) / 100,
       },
-      market,
+      market: {
+        calculated: market,
+        listings: null, // populated client-side via /api/market/listings
+      },
+      features: FEATURES,
       flags,
       scripts,
     });

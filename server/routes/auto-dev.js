@@ -1,0 +1,234 @@
+import { Router } from 'express';
+import { isEnabled } from '../config.js';
+
+const router = Router();
+
+const AUTO_DEV_BASE = 'https://api.auto.dev';
+const API_KEY = process.env.AUTO_DEV_API_KEY;
+
+// ---------------------------------------------------------------------------
+// Simple TTL cache (30 min default)
+// ---------------------------------------------------------------------------
+class TTLCache {
+  constructor(ttlMs = 30 * 60 * 1000) {
+    this.ttl = ttlMs;
+    this.store = new Map();
+  }
+  get(key) {
+    const entry = this.store.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expires) {
+      this.store.delete(key);
+      return null;
+    }
+    return entry.value;
+  }
+  set(key, value) {
+    this.store.set(key, { value, expires: Date.now() + this.ttl });
+  }
+}
+
+const cache = new TTLCache();
+
+// ---------------------------------------------------------------------------
+// Rate limiter — 5 req/sec sliding window for Auto.dev
+// ---------------------------------------------------------------------------
+class RateLimiter {
+  constructor(maxPerSec = 5) {
+    this.max = maxPerSec;
+    this.timestamps = [];
+  }
+  async acquire() {
+    const now = Date.now();
+    this.timestamps = this.timestamps.filter(t => now - t < 1000);
+    if (this.timestamps.length >= this.max) {
+      const waitMs = 1000 - (now - this.timestamps[0]);
+      await new Promise(r => setTimeout(r, waitMs));
+    }
+    this.timestamps.push(Date.now());
+  }
+}
+
+const limiter = new RateLimiter(5);
+
+// ---------------------------------------------------------------------------
+// Auto.dev fetch helper
+// ---------------------------------------------------------------------------
+async function autoDevFetch(path, params = {}) {
+  if (!API_KEY) return null;
+  await limiter.acquire();
+
+  const url = new URL(path, AUTO_DEV_BASE);
+  Object.entries(params).forEach(([k, v]) => {
+    if (v != null && v !== '') url.searchParams.set(k, String(v));
+  });
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${API_KEY}` },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) {
+      console.warn(`Auto.dev ${res.status}: ${url.pathname}`);
+      return null;
+    }
+    return res.json();
+  } catch (err) {
+    clearTimeout(timeout);
+    console.warn(`Auto.dev fetch failed: ${err.message}`);
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Helper: bucket mileage to nearest 10k for cache key
+// ---------------------------------------------------------------------------
+function mileageBucket(m) {
+  if (!m) return 'any';
+  return String(Math.round(Number(m) / 10000) * 10000);
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/market/listings
+// Returns avg price, listing count, sample listings for similar vehicles
+// ---------------------------------------------------------------------------
+router.get('/listings', async (req, res) => {
+  if (!isEnabled('marketListings') || !API_KEY) {
+    return res.json({ enabled: false, reason: !API_KEY ? 'not_configured' : 'disabled' });
+  }
+
+  const { year, make, model, mileage } = req.query;
+  if (!year || !make || !model) {
+    return res.status(400).json({ error: 'year, make, model required' });
+  }
+
+  const cacheKey = `listings-${year}-${make}-${model}-${mileageBucket(mileage)}`;
+  const cached = cache.get(cacheKey);
+  if (cached) return res.json(cached);
+
+  try {
+    // Build mileage range: +/- 25k from input, or 0-200k if none
+    let milesParam = '0-200000';
+    if (mileage) {
+      const m = Number(mileage);
+      milesParam = `${Math.max(0, m - 25000)}-${m + 25000}`;
+    }
+
+    const data = await autoDevFetch('/listings', {
+      'vehicle.year': year,
+      'vehicle.make': make,
+      'vehicle.model': model,
+      'retailListing.miles': milesParam,
+      limit: 50,
+    });
+
+    if (!data || !Array.isArray(data.listings) || data.listings.length === 0) {
+      const empty = {
+        enabled: true,
+        avgPrice: null,
+        medianPrice: null,
+        listingCount: 0,
+        priceRange: null,
+        sampleListings: [],
+      };
+      cache.set(cacheKey, empty);
+      return res.json(empty);
+    }
+
+    // Extract prices — use retailListing.price (asking/listing price, before dealer fees)
+    const listings = data.listings.filter(l => l.retailListing?.price > 0);
+    const prices = listings.map(l => l.retailListing.price).sort((a, b) => a - b);
+
+    const avg = Math.round(prices.reduce((s, p) => s + p, 0) / prices.length);
+    const median = prices.length % 2 === 0
+      ? Math.round((prices[prices.length / 2 - 1] + prices[prices.length / 2]) / 2)
+      : prices[Math.floor(prices.length / 2)];
+
+    // Pick 5 representative samples spread across the price range
+    const samples = [];
+    const step = Math.max(1, Math.floor(listings.length / 5));
+    for (let i = 0; i < listings.length && samples.length < 5; i += step) {
+      const l = listings[i];
+      samples.push({
+        price: l.retailListing.price,
+        mileage: l.retailListing.miles || null,
+        dealer: l.retailListing.dealerName || null,
+        city: l.retailListing.city || null,
+        state: l.retailListing.state || null,
+        photoUrl: l.retailListing.photoUrl || l.retailListing.primaryPhotoUrl || null,
+        listingUrl: l.retailListing.listingUrl || l.retailListing.url || null,
+        trim: l.vehicle?.trim || null,
+      });
+    }
+
+    const result = {
+      enabled: true,
+      avgPrice: avg,
+      medianPrice: median,
+      listingCount: prices.length,
+      priceRange: { low: prices[0], high: prices[prices.length - 1] },
+      sampleListings: samples,
+    };
+
+    cache.set(cacheKey, result);
+    return res.json(result);
+  } catch (err) {
+    console.error('Market listings error:', err.message);
+    return res.json({ enabled: true, avgPrice: null, listingCount: 0, sampleListings: [] });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/market/photo
+// Returns a photo URL for the vehicle
+// ---------------------------------------------------------------------------
+router.get('/photo', async (req, res) => {
+  if (!isEnabled('vehiclePhotos') || !API_KEY) {
+    return res.json({ enabled: false, photoUrl: null });
+  }
+
+  const { year, make, model, trim } = req.query;
+  if (!year || !make || !model) {
+    return res.status(400).json({ error: 'year, make, model required' });
+  }
+
+  const cacheKey = `photo-${year}-${make}-${model}-${trim || 'any'}`;
+  const cached = cache.get(cacheKey);
+  if (cached) return res.json(cached);
+
+  try {
+    const params = {
+      'vehicle.year': year,
+      'vehicle.make': make,
+      'vehicle.model': model,
+      limit: 5,
+    };
+    if (trim) params['vehicle.trim'] = trim;
+
+    const data = await autoDevFetch('/listings', params);
+
+    let photoUrl = null;
+    if (data?.listings?.length > 0) {
+      for (const l of data.listings) {
+        const url = l.retailListing?.photoUrl || l.retailListing?.primaryPhotoUrl;
+        if (url) {
+          photoUrl = url;
+          break;
+        }
+      }
+    }
+
+    const result = { enabled: true, photoUrl };
+    cache.set(cacheKey, result);
+    return res.json(result);
+  } catch (err) {
+    console.error('Vehicle photo error:', err.message);
+    return res.json({ enabled: true, photoUrl: null });
+  }
+});
+
+export default router;
