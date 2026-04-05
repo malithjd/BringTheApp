@@ -74,12 +74,22 @@ export default function ScoreGauge({ score, label, vehicle, photoUrl }) {
       </div>
 
       {vehicle && (
-        <p className="mt-3 text-text2 text-sm">
-          {vehicle.year} {vehicle.make} {vehicle.model} {vehicle.trim || ''}
-          <span className="ml-2 text-xs bg-surface2 px-2 py-0.5 rounded">
-            {vehicle.condition === 'new' ? 'New' : 'Used'}
-          </span>
-        </p>
+        <div className="mt-3 flex items-center justify-center gap-3">
+          {photoUrl && (
+            <img
+              src={photoUrl}
+              alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+              className="w-16 h-12 rounded-lg object-cover border border-border/50 flex-shrink-0"
+              onError={(e) => { e.target.style.display = 'none'; }}
+            />
+          )}
+          <p className="text-text2 text-sm">
+            {vehicle.year} {vehicle.make} {vehicle.model} {vehicle.trim || ''}
+            <span className="ml-2 text-xs bg-surface2 px-2 py-0.5 rounded">
+              {vehicle.condition === 'new' ? 'New' : 'Used'}
+            </span>
+          </p>
+        </div>
       )}
 
       {photoUrl && (

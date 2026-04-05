@@ -46,7 +46,6 @@ export default function ResultsView({ dealData, result, onEditDeal, onNewDeal })
   const [listings, setListings] = useState(null);
   const [photoUrl, setPhotoUrl] = useState(null);
 
-  // Fetch market listings + vehicle photo asynchronously after results load
   useEffect(() => {
     if (!result?.vehicle) return;
     const v = result.vehicle;
@@ -57,11 +56,9 @@ export default function ResultsView({ dealData, result, onEditDeal, onNewDeal })
         .catch(() => {});
     }
 
-    if (result.features?.vehiclePhotos) {
-      getVehiclePhoto(v.year, v.make, v.model, v.trim)
-        .then(data => { if (data.photoUrl) setPhotoUrl(data.photoUrl); })
-        .catch(() => {});
-    }
+    getVehiclePhoto(v.year, v.make, v.model, v.trim)
+      .then(data => { if (data.photoUrl) setPhotoUrl(data.photoUrl); })
+      .catch(() => {});
   }, [result]);
 
   if (!result) return null;
