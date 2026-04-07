@@ -55,9 +55,11 @@ STEP 2 – EXTRACT VEHICLE INFO (look across ALL pages)
 - stock_number, exterior_color, interior_color, mileage
 
 STEP 3 – EXTRACT PRICING (from buyer's order / purchase agreement)
-- selling_price: the VEHICLE PRICE or SELLING PRICE line (NOT the total with fees)
+- selling_price: the ORIGINAL VEHICLE PRICE or SELLING PRICE line BEFORE any discount (NOT the total with fees)
+- discount: any DISCOUNT line item that reduces the selling price (as a positive number). Common labels: "Discount", "Dealer Discount", "Customer Discount". DO NOT confuse with rebates.
+- sales_price: the SALES PRICE or NET PRICE AFTER discount (selling_price - discount). If shown on the document, extract it directly.
 - msrp: from the window sticker "Total Suggested Retail Price" or "Total MSRP"
-- rebates_incentives: any REBATE line item (as a positive number)
+- rebates_incentives: any REBATE line item (as a positive number). Rebates are manufacturer incentives, usually separate from dealer discounts.
 - doc_fee: documentation/processing fee
 - sales_tax: the SALES TAX amount
 - registration_fee: registration/plate fees
@@ -127,6 +129,8 @@ const EXTRACTION_SCHEMA = {
       properties: {
         msrp: { type: 'number', nullable: true },
         selling_price: { type: 'number', nullable: true },
+        discount: { type: 'number', nullable: true },
+        sales_price: { type: 'number', nullable: true },
         rebates_incentives: { type: 'number', nullable: true },
         doc_fee: { type: 'number', nullable: true },
         sales_tax: { type: 'number', nullable: true },
@@ -136,7 +140,7 @@ const EXTRACTION_SCHEMA = {
         destination_charge: { type: 'number', nullable: true },
       },
       required: [
-        'msrp', 'selling_price', 'rebates_incentives', 'doc_fee',
+        'msrp', 'selling_price', 'discount', 'sales_price', 'rebates_incentives', 'doc_fee',
         'sales_tax', 'title_fee', 'registration_fee', 'total_price',
         'destination_charge',
       ],
@@ -597,9 +601,18 @@ function mapToFormFields(extracted) {
   }
 
   // Pricing
+  // Vehicle Price = post-discount sales price.
+  // Priority: sales_price (explicit) > selling_price - discount > selling_price
   if (extracted.pricing) {
     const p = extracted.pricing;
-    if (p.selling_price != null) f.price = p.selling_price;
+    let effectivePrice = null;
+    if (p.sales_price != null && p.sales_price > 0) {
+      effectivePrice = p.sales_price;
+    } else if (p.selling_price != null) {
+      const discount = p.discount != null && p.discount > 0 ? p.discount : 0;
+      effectivePrice = Math.max(0, p.selling_price - discount);
+    }
+    if (effectivePrice != null) f.price = effectivePrice;
     if (p.msrp != null) f.msrp = p.msrp;
     if (p.doc_fee != null) f.docFee = p.doc_fee;
     if (p.sales_tax != null) f.taxAmount = p.sales_tax;
