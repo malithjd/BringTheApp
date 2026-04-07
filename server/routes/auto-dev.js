@@ -94,22 +94,17 @@ function mileageBucket(m) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/market/listings
-// Returns avg price, listing count, sample listings for similar vehicles
+// Core: fetchMarketListings — reusable by routes AND analyze.js
+// Returns null if disabled/unconfigured. Returns result object otherwise.
 // ---------------------------------------------------------------------------
-router.get('/listings', async (req, res) => {
+export async function fetchMarketListings(year, make, model, mileage) {
   if (!isEnabled('marketListings') || !getApiKey()) {
-    return res.json({ enabled: false, reason: !getApiKey() ? 'not_configured' : 'disabled' });
-  }
-
-  const { year, make, model, mileage } = req.query;
-  if (!year || !make || !model) {
-    return res.status(400).json({ error: 'year, make, model required' });
+    return { enabled: false, reason: !getApiKey() ? 'not_configured' : 'disabled' };
   }
 
   const cacheKey = `listings-${year}-${make}-${model}-${mileageBucket(mileage)}`;
   const cached = cache.get(cacheKey);
-  if (cached) return res.json(cached);
+  if (cached) return cached;
 
   try {
     // Build mileage range: +/- 25k from input, or 0-200k if none
@@ -139,14 +134,10 @@ router.get('/listings', async (req, res) => {
         sampleListings: [],
       };
       cache.set(cacheKey, empty);
-      return res.json(empty);
+      return empty;
     }
 
-    // Free tier doesn't include listing prices — use vehicle.baseMsrp as reference
-    // Filter to listings with retail data
     const listings = allListings.filter(l => l.retailListing);
-
-    // Try to get prices: retailListing.price (paid tier) or vehicle.baseMsrp (free tier reference)
     const withPrices = listings.filter(l => l.retailListing?.price > 0);
     const prices = withPrices.length > 0
       ? withPrices.map(l => l.retailListing.price).sort((a, b) => a - b)
@@ -159,7 +150,6 @@ router.get('/listings', async (req, res) => {
         : prices[Math.floor(prices.length / 2)])
       : null;
 
-    // Pick up to 5 representative samples
     const samples = [];
     const step = Math.max(1, Math.floor(listings.length / 5));
     for (let i = 0; i < listings.length && samples.length < 5; i += step) {
@@ -188,11 +178,23 @@ router.get('/listings', async (req, res) => {
     };
 
     cache.set(cacheKey, result);
-    return res.json(result);
+    return result;
   } catch (err) {
     console.error('Market listings error:', err.message);
-    return res.json({ enabled: true, avgPrice: null, listingCount: 0, sampleListings: [] });
+    return { enabled: true, avgPrice: null, listingCount: 0, sampleListings: [] };
   }
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/market/listings — HTTP wrapper
+// ---------------------------------------------------------------------------
+router.get('/listings', async (req, res) => {
+  const { year, make, model, mileage } = req.query;
+  if (!year || !make || !model) {
+    return res.status(400).json({ error: 'year, make, model required' });
+  }
+  const result = await fetchMarketListings(year, make, model, mileage);
+  return res.json(result);
 });
 
 // ---------------------------------------------------------------------------

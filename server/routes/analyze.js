@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getFeatures } from '../config.js';
+import { fetchMarketListings } from './auto-dev.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
@@ -70,6 +71,37 @@ function findTrimMsrp(make, model, year, trim) {
 
   // Return base trim
   return { msrp: yearData[trims[0]], trim: trims[0], allTrims: yearData };
+}
+
+/**
+ * Build a unified market reference for flags/scripts/scoring.
+ * Prefers live market listings over calculated fair value when available.
+ * Returns: { source: 'listings' | 'calculated', estimated, low, high, baseMsrp, listingCount, hasLiveData }
+ */
+function buildMarketReference(calculated, listings) {
+  const hasLiveData = listings?.enabled !== false && listings?.avgPrice != null && listings?.listingCount > 0;
+
+  if (hasLiveData) {
+    return {
+      source: 'listings',
+      estimated: listings.avgPrice,
+      low: listings.priceRange?.low || Math.round(listings.avgPrice * 0.9),
+      high: listings.priceRange?.high || Math.round(listings.avgPrice * 1.1),
+      baseMsrp: calculated?.baseMsrp ?? null,
+      listingCount: listings.listingCount,
+      hasLiveData: true,
+    };
+  }
+
+  return {
+    source: 'calculated',
+    estimated: calculated?.estimated ?? null,
+    low: calculated?.low ?? null,
+    high: calculated?.high ?? null,
+    baseMsrp: calculated?.baseMsrp ?? null,
+    listingCount: 0,
+    hasLiveData: false,
+  };
 }
 
 function estimateMarketValue(make, model, year, trim, condition, mileage) {
@@ -270,21 +302,28 @@ function generateFlags(deal, market, stateData) {
   const greenFlags = [];
   const totalAddons = (deal.addons || []).reduce((sum, a) => sum + (a.price || 0), 0);
 
-  // Red flags
+  // Red flags — use marketRef (live listings when available, calculated otherwise)
+  const refSourceLabel = market.hasLiveData
+    ? `market average of ${market.listingCount} active listings`
+    : 'calculated fair market price';
+  const refNoticeCalc = market.hasLiveData
+    ? ''
+    : ' (no active listings found in market — based on depreciation model)';
+
   if (market.estimated) {
     const ratio = deal.price / market.estimated;
     if (ratio > 1.30) {
       redFlags.push({
         severity: 'critical',
-        title: 'Significantly Above MSRP',
-        detail: `Vehicle priced $${Math.round(deal.price - market.estimated).toLocaleString()} above market value. Price ratio: ${Math.round(ratio * 100)}% of market.`,
+        title: 'Significantly Above Market',
+        detail: `Vehicle priced $${Math.round(deal.price - market.estimated).toLocaleString()} above the ${refSourceLabel}. Price ratio: ${Math.round(ratio * 100)}% of market.${refNoticeCalc}`,
         action: 'Negotiate down or walk away.',
       });
     } else if (ratio > 1.15) {
       redFlags.push({
         severity: 'warning',
         title: 'Above Market Value',
-        detail: `Vehicle priced $${Math.round(deal.price - market.estimated).toLocaleString()} above market value.`,
+        detail: `Vehicle priced $${Math.round(deal.price - market.estimated).toLocaleString()} above the ${refSourceLabel}.${refNoticeCalc}`,
         action: 'Negotiate the price closer to market value.',
       });
     }
@@ -423,7 +462,7 @@ function generateFlags(deal, market, stateData) {
   if (market.estimated && deal.price <= market.estimated * 0.95) {
     greenFlags.push({
       title: 'Below Market Price',
-      detail: `Price is ${Math.round((1 - deal.price / market.estimated) * 100)}% below estimated market value.`,
+      detail: `Price is ${Math.round((1 - deal.price / market.estimated) * 100)}% below the ${market.hasLiveData ? `market average of ${market.listingCount} active listings` : 'calculated fair market price'}.`,
     });
   }
 
@@ -480,9 +519,16 @@ function generateNegotiationScripts(deal, market, stateData) {
   if (market.estimated && deal.price > market.estimated * 1.05) {
     const diff = Math.round(deal.price - market.estimated);
     const target = Math.round(market.estimated * 1.02);
+    let script;
+    if (market.hasLiveData) {
+      script = `"I've researched the ${deal.year} ${deal.make} ${deal.model} and comparable vehicles are currently listed for around $${market.estimated.toLocaleString()} (based on ${market.listingCount} active listings). Your asking price of $${deal.price.toLocaleString()} is $${diff.toLocaleString()} above the market average. Can we work toward $${target.toLocaleString()}?"`;
+    } else {
+      script = `"Based on the calculated fair market price for a ${deal.year} ${deal.make} ${deal.model}, comparable vehicles should be around $${market.estimated.toLocaleString()}. Your asking price of $${deal.price.toLocaleString()} is $${diff.toLocaleString()} above fair value. Can we work toward $${target.toLocaleString()}? (Note: we couldn't find active listings for this exact vehicle — this is based on our depreciation model.)"`;
+    }
     scripts.push({
       issue: 'Price Above Market',
-      script: `"I've researched the ${deal.year} ${deal.make} ${deal.model} and comparable vehicles are selling for around $${market.estimated.toLocaleString()}. Your asking price of $${deal.price.toLocaleString()} is $${diff.toLocaleString()} above market. Can we work toward $${target.toLocaleString()}?"`,
+      script,
+      source: market.hasLiveData ? 'live-listings' : 'calculated',
     });
   }
 
@@ -583,8 +629,19 @@ router.post('/', async (req, res) => {
     const totalPaid = effectiveTerm > 0 ? Math.round(monthlyPayment * effectiveTerm * 100) / 100 : Math.round(totalCost * 100) / 100;
     const totalInterest = effectiveTerm > 0 ? Math.round((totalPaid - loanAmount) * 100) / 100 : 0;
 
-    // Market estimation
+    // Market estimation (calculated fair value from depreciation model)
     const market = estimateMarketValue(make, model, parseInt(year), trim, effectiveCondition, mileage);
+
+    // Fetch live market listings from Auto.dev (for flags/scripts/dual-bar display)
+    let listings = null;
+    try {
+      listings = await fetchMarketListings(year, make, model, mileage);
+    } catch (err) {
+      console.warn('Listings fetch failed, using calculated value only:', err.message);
+    }
+
+    // Build unified market reference — prefers live listings, falls back to calculated
+    const marketRef = buildMarketReference(market, listings);
 
     // Build the deal object with computed values for scoring
     const dealForScoring = {
@@ -606,14 +663,14 @@ router.post('/', async (req, res) => {
       addons: addons || [],
     };
 
-    // Score the deal
+    // Score the deal (uses calculated value for consistency in scoring)
     const scoring = scoreDeal(dealForScoring, market, stateData);
 
-    // Generate flags
-    const flags = generateFlags(dealForScoring, market, stateData);
+    // Generate flags (uses marketRef — prefers live listings over calculated)
+    const flags = generateFlags(dealForScoring, marketRef, stateData);
 
-    // Negotiation scripts
-    const scripts = generateNegotiationScripts(dealForScoring, market, stateData);
+    // Negotiation scripts (uses marketRef — prefers live listings over calculated)
+    const scripts = generateNegotiationScripts(dealForScoring, marketRef, stateData);
 
     // Tax law
     const taxLaw = taxLaws[state] || null;
@@ -652,7 +709,8 @@ router.post('/', async (req, res) => {
       },
       market: {
         calculated: market,
-        listings: null, // populated client-side via /api/market/listings
+        listings, // populated server-side during analyze (from Auto.dev)
+        reference: marketRef, // unified ref used by flags/scripts
       },
       features: getFeatures(),
       flags,
