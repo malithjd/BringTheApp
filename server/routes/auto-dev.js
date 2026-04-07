@@ -175,7 +175,13 @@ export async function fetchMarketListings(year, make, model, mileage, userZip) {
       return empty;
     }
 
-    const listings = allListings.filter(l => l.retailListing);
+    // Filter out listings with blocked URLs (BringTheApp self-references, DealerCenter)
+    const BLOCKED_URL_PATTERNS = [/bringtheapp/i, /dealercenter\.com/i];
+    const listings = allListings.filter(l => {
+      if (!l.retailListing) return false;
+      const url = l.retailListing.vdp || l.retailListing.listingUrl || l.retailListing.url || '';
+      return !BLOCKED_URL_PATTERNS.some(pat => pat.test(url));
+    });
     const withPrices = listings.filter(l => l.retailListing?.price > 0);
     const prices = withPrices.length > 0
       ? withPrices.map(l => l.retailListing.price).sort((a, b) => a - b)
