@@ -75,9 +75,10 @@ export async function parseDocumentBase64(base64Data) {
  * @param {Array<File|Blob>} files - Array of image/PDF files to process
  * @returns {Promise<Object>} The extracted fields and raw text
  */
-export async function getMarketListings(year, make, model, mileage) {
+export async function getMarketListings(year, make, model, mileage, zip) {
   const params = new URLSearchParams({ year, make, model });
   if (mileage) params.set('mileage', mileage);
+  if (zip) params.set('zip', zip);
   return fetchJSON(`/market/listings?${params}`);
 }
 

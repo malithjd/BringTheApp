@@ -94,17 +94,55 @@ function mileageBucket(m) {
 }
 
 // ---------------------------------------------------------------------------
+// ZIP → coordinates resolver (via free Zippopotam.us API, cached)
+// ---------------------------------------------------------------------------
+const zipCache = new TTLCache(24 * 60 * 60 * 1000); // 24h TTL
+
+async function resolveZipCoords(zip) {
+  if (!zip || !/^\d{5}$/.test(zip)) return null;
+  const cached = zipCache.get(zip);
+  if (cached) return cached;
+  try {
+    const res = await fetch(`https://api.zippopotam.us/us/${zip}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const place = data?.places?.[0];
+    if (!place) return null;
+    const coords = { lat: parseFloat(place.latitude), lng: parseFloat(place.longitude) };
+    zipCache.set(zip, coords);
+    return coords;
+  } catch {
+    return null;
+  }
+}
+
+// Haversine distance in miles
+function haversineMiles(lat1, lng1, lat2, lng2) {
+  if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) return null;
+  const R = 3958.8;
+  const toRad = d => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+}
+
+// ---------------------------------------------------------------------------
 // Core: fetchMarketListings — reusable by routes AND analyze.js
 // Returns null if disabled/unconfigured. Returns result object otherwise.
 // ---------------------------------------------------------------------------
-export async function fetchMarketListings(year, make, model, mileage) {
+export async function fetchMarketListings(year, make, model, mileage, userZip) {
   if (!isEnabled('marketListings') || !getApiKey()) {
     return { enabled: false, reason: !getApiKey() ? 'not_configured' : 'disabled' };
   }
 
-  const cacheKey = `listings-${year}-${make}-${model}-${mileageBucket(mileage)}`;
+  const cacheKey = `listings-${year}-${make}-${model}-${mileageBucket(mileage)}-${userZip || 'none'}`;
   const cached = cache.get(cacheKey);
   if (cached) return cached;
+
+  // Resolve user location for distance calculation
+  const userCoords = userZip ? await resolveZipCoords(userZip) : null;
 
   try {
     // Build mileage range: +/- 25k from input, or 0-200k if none
@@ -150,23 +188,31 @@ export async function fetchMarketListings(year, make, model, mileage) {
         : prices[Math.floor(prices.length / 2)])
       : null;
 
-    const samples = [];
-    const step = Math.max(1, Math.floor(listings.length / 5));
-    for (let i = 0; i < listings.length && samples.length < 5; i += step) {
-      const l = listings[i];
+    // Map all listings to client-friendly shape (includes distance from user)
+    const allListingsMapped = listings.map(l => {
       const rl = l.retailListing || {};
-      samples.push({
+      const lat = Array.isArray(l.location) ? l.location[1] : null;
+      const lng = Array.isArray(l.location) ? l.location[0] : null;
+      const distance = userCoords && lat != null && lng != null
+        ? haversineMiles(userCoords.lat, userCoords.lng, lat, lng)
+        : null;
+      return {
         price: rl.price || null,
         mileage: rl.miles || null,
         dealer: rl.dealer || rl.dealerName || null,
         city: rl.city || null,
         state: rl.state || null,
+        zip: rl.zip || null,
         photoUrl: rl.primaryImage || rl.photoUrl || rl.primaryPhotoUrl || null,
         listingUrl: rl.vdp || rl.listingUrl || rl.url || null,
         trim: l.vehicle?.trim || null,
         baseMsrp: l.vehicle?.baseMsrp || null,
-      });
-    }
+        distanceMiles: distance,
+      };
+    });
+
+    // First 5 samples for backward compat (default when collapsed)
+    const samples = allListingsMapped.slice(0, 5);
 
     const result = {
       enabled: true,
@@ -175,6 +221,7 @@ export async function fetchMarketListings(year, make, model, mileage) {
       listingCount: listings.length,
       priceRange: prices ? { low: prices[0], high: prices[prices.length - 1] } : null,
       sampleListings: samples,
+      allListings: allListingsMapped,
     };
 
     cache.set(cacheKey, result);
@@ -189,11 +236,11 @@ export async function fetchMarketListings(year, make, model, mileage) {
 // GET /api/market/listings — HTTP wrapper
 // ---------------------------------------------------------------------------
 router.get('/listings', async (req, res) => {
-  const { year, make, model, mileage } = req.query;
+  const { year, make, model, mileage, zip } = req.query;
   if (!year || !make || !model) {
     return res.status(400).json({ error: 'year, make, model required' });
   }
-  const result = await fetchMarketListings(year, make, model, mileage);
+  const result = await fetchMarketListings(year, make, model, mileage, zip);
   return res.json(result);
 });
 

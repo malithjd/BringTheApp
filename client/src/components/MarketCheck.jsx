@@ -1,3 +1,4 @@
+import { useState, useMemo } from 'react';
 import { formatCurrency } from '../lib/format';
 
 function PriceBar({ label, subtitle, reference, low, high, userPrice }) {
@@ -54,6 +55,25 @@ export default function MarketCheck({ vehicle, market, price }) {
   const calc = market?.calculated;
   const listings = market?.listings;
   const isNew = vehicle.condition === 'new';
+
+  const [sortBy, setSortBy] = useState('distance'); // 'distance' | 'price-asc' | 'price-desc'
+  const [showAll, setShowAll] = useState(false);
+
+  // Sorted list of ALL listings (or fall back to samples if allListings missing)
+  const sortedListings = useMemo(() => {
+    const source = listings?.allListings || listings?.sampleListings || [];
+    const copy = [...source];
+    if (sortBy === 'price-asc') {
+      copy.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
+    } else if (sortBy === 'price-desc') {
+      copy.sort((a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity));
+    } else if (sortBy === 'distance') {
+      copy.sort((a, b) => (a.distanceMiles ?? Infinity) - (b.distanceMiles ?? Infinity));
+    }
+    return copy;
+  }, [listings, sortBy]);
+
+  const hasDistanceData = sortedListings.some(l => l.distanceMiles != null);
 
   const hasCalc = calc?.estimated != null;
   const hasListings = listings?.enabled !== false && listings?.avgPrice != null;
@@ -134,21 +154,61 @@ export default function MarketCheck({ vehicle, market, price }) {
         </div>
       )}
 
-      {/* Sample Listings */}
-      {hasListings && listings.sampleListings?.length > 0 && (
+      {/* Similar Listings — with sort and view-all controls */}
+      {hasListings && sortedListings.length > 0 && (
         <details className="mt-3">
           <summary className="text-sm text-accent cursor-pointer hover:text-accent-hover font-medium">
             View {listings.listingCount} similar listing{listings.listingCount !== 1 ? 's' : ''}
           </summary>
+
+          {/* Sort controls */}
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-text2 mr-1">Sort:</span>
+            {hasDistanceData && (
+              <button
+                onClick={() => setSortBy('distance')}
+                className={`px-2.5 py-1 text-[11px] rounded-lg border transition-colors ${
+                  sortBy === 'distance'
+                    ? 'bg-accent text-white border-accent'
+                    : 'bg-surface2 text-text2 border-border hover:border-accent'
+                }`}
+              >
+                Distance
+              </button>
+            )}
+            <button
+              onClick={() => setSortBy('price-asc')}
+              className={`px-2.5 py-1 text-[11px] rounded-lg border transition-colors ${
+                sortBy === 'price-asc'
+                  ? 'bg-accent text-white border-accent'
+                  : 'bg-surface2 text-text2 border-border hover:border-accent'
+              }`}
+            >
+              Price ↑
+            </button>
+            <button
+              onClick={() => setSortBy('price-desc')}
+              className={`px-2.5 py-1 text-[11px] rounded-lg border transition-colors ${
+                sortBy === 'price-desc'
+                  ? 'bg-accent text-white border-accent'
+                  : 'bg-surface2 text-text2 border-border hover:border-accent'
+              }`}
+            >
+              Price ↓
+            </button>
+          </div>
+
+          {/* Listings (5 by default, all when expanded) */}
           <div className="mt-2 space-y-2">
-            {listings.sampleListings.map((l, i) => (
+            {(showAll ? sortedListings : sortedListings.slice(0, 5)).map((l, i) => (
               <div key={i} className="flex items-center justify-between bg-surface2 rounded-lg px-3 py-2 text-sm">
-                <div>
-                  <p className="text-text font-medium">{formatCurrency(l.price)}</p>
-                  <p className="text-text2 text-xs">
+                <div className="min-w-0 flex-1">
+                  <p className="text-text font-medium">{l.price ? formatCurrency(l.price) : 'Price on request'}</p>
+                  <p className="text-text2 text-xs truncate">
                     {l.mileage ? `${Number(l.mileage).toLocaleString()} mi` : 'N/A mi'}
                     {l.trim ? ` — ${l.trim}` : ''}
                     {l.city ? ` — ${l.city}, ${l.state}` : ''}
+                    {l.distanceMiles != null ? ` — ${l.distanceMiles} mi away` : ''}
                   </p>
                 </div>
                 {l.listingUrl && (
@@ -164,6 +224,16 @@ export default function MarketCheck({ vehicle, market, price }) {
               </div>
             ))}
           </div>
+
+          {/* View all / Show less toggle */}
+          {sortedListings.length > 5 && (
+            <button
+              onClick={() => setShowAll(s => !s)}
+              className="mt-2 w-full py-2 text-sm text-accent hover:text-accent-hover font-medium border border-border rounded-lg hover:bg-surface2 transition-colors"
+            >
+              {showAll ? 'Show less' : `View all ${sortedListings.length} listings`}
+            </button>
+          )}
         </details>
       )}
 

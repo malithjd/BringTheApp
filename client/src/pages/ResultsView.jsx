@@ -5,7 +5,7 @@ import MarketCheck from '../components/MarketCheck';
 import FlagsPanel from '../components/FlagsPanel';
 import FeeBreakdown from '../components/FeeBreakdown';
 import NegotiationTips from '../components/NegotiationTips';
-import { getMarketListings, getVehiclePhoto } from '../lib/api';
+import { getVehiclePhoto } from '../lib/api';
 
 function buildEmailBody(result) {
   const v = result.vehicle || {};
@@ -43,19 +43,14 @@ function buildEmailBody(result) {
 
 export default function ResultsView({ dealData, result, onEditDeal, onNewDeal }) {
   const [emailSent, setEmailSent] = useState(false);
-  const [listings, setListings] = useState(null);
   const [photoUrl, setPhotoUrl] = useState(null);
 
   useEffect(() => {
     if (!result?.vehicle) return;
     const v = result.vehicle;
 
-    if (result.features?.marketListings) {
-      getMarketListings(v.year, v.make, v.model, v.mileage)
-        .then(data => { if (data.enabled !== false) setListings(data); })
-        .catch(() => {});
-    }
-
+    // Listings are already fetched server-side during /analyze (with distance data).
+    // Only fetch the vehicle photo separately.
     getVehiclePhoto(v.year, v.make, v.model, v.trim)
       .then(data => { if (data.photoUrl) setPhotoUrl(data.photoUrl); })
       .catch(() => {});
@@ -91,7 +86,7 @@ export default function ResultsView({ dealData, result, onEditDeal, onNewDeal })
       {/* Panel 3: Market Check */}
       <MarketCheck
         vehicle={result.vehicle}
-        market={{ ...result.market, listings }}
+        market={result.market}
         price={result.entered.price}
       />
 

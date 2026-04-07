@@ -727,7 +727,7 @@ router.post('/', async (req, res) => {
     // Fetch live market listings from Auto.dev (for flags/scripts/dual-bar display)
     let listings = null;
     try {
-      listings = await fetchMarketListings(year, make, model, mileage);
+      listings = await fetchMarketListings(year, make, model, mileage, zip);
     } catch (err) {
       console.warn('Listings fetch failed, using calculated value only:', err.message);
     }
