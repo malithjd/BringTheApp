@@ -755,8 +755,9 @@ router.post('/', async (req, res) => {
       addons: addons || [],
     };
 
-    // Score the deal (uses calculated value for consistency in scoring)
-    const scoring = scoreDeal(dealForScoring, market, stateData);
+    // Score the deal — use marketRef (live listings when available, calculated otherwise)
+    // so the score is consistent with flags and scripts
+    const scoring = scoreDeal(dealForScoring, marketRef, stateData);
 
     // Generate flags (uses marketRef — prefers live listings over calculated)
     const flags = generateFlags(dealForScoring, marketRef, stateData);
