@@ -74,6 +74,67 @@ function findTrimMsrp(make, model, year, trim) {
 }
 
 /**
+ * Calculate the effective legal doc fee cap for a given state + car price.
+ * Handles percentage-based rules (e.g., Ohio: lesser of $398 or 10% of price).
+ * Returns: { hasCap, effectiveCap, flatCap, percentCap, capType, law, explanation }
+ */
+function calculateEffectiveDocFeeCap(stateData, vehiclePrice) {
+  const df = stateData?.docFee;
+  if (!df?.capped) {
+    return { hasCap: false, effectiveCap: null, law: null, explanation: null };
+  }
+
+  const flatCap = df.cap || null;
+  const percentCap = df.percentCap || null;
+  const law = df.law || null;
+  const lawSummary = df.lawSummary || null;
+
+  // Percentage-based rule (e.g., Ohio: lesser of $398 or 10%)
+  if (percentCap && flatCap && vehiclePrice > 0) {
+    const percentAmount = Math.round(vehiclePrice * percentCap);
+    const capType = df.capType || 'lesser-of';
+
+    let effectiveCap;
+    let explanation;
+    if (capType === 'lesser-of') {
+      effectiveCap = Math.min(flatCap, percentAmount);
+      const lower = effectiveCap === flatCap ? `$${flatCap} (flat maximum)` : `$${percentAmount} (${(percentCap * 100).toFixed(0)}% of $${vehiclePrice.toLocaleString()})`;
+      explanation = `For a $${vehiclePrice.toLocaleString()} vehicle, the effective cap is ${lower}.`;
+    } else if (capType === 'greater-of') {
+      effectiveCap = Math.max(flatCap, percentAmount);
+      explanation = `For a $${vehiclePrice.toLocaleString()} vehicle, the effective cap is $${effectiveCap} (greater of $${flatCap} or ${(percentCap * 100).toFixed(0)}%).`;
+    } else {
+      effectiveCap = flatCap;
+      explanation = `Flat cap of $${flatCap}.`;
+    }
+
+    return {
+      hasCap: true,
+      effectiveCap,
+      flatCap,
+      percentCap,
+      percentAmount,
+      capType,
+      law,
+      lawSummary,
+      explanation,
+    };
+  }
+
+  // Simple flat cap (e.g., CA $85, NY $175)
+  return {
+    hasCap: true,
+    effectiveCap: flatCap,
+    flatCap,
+    percentCap: null,
+    capType: 'flat',
+    law,
+    lawSummary,
+    explanation: `Flat cap of $${flatCap}.`,
+  };
+}
+
+/**
  * Build a unified market reference for flags/scripts/scoring.
  * Prefers live market listings over calculated fair value when available.
  * Returns: { source: 'listings' | 'calculated', estimated, low, high, baseMsrp, listingCount, hasLiveData }
@@ -210,8 +271,9 @@ function scoreDeal(deal, market, stateData, taxInfo) {
   // Factor 3: Fees vs Norms (15 pts max)
   const docFee = deal.docFee || 0;
   let feePts = 15;
-  if (stateData?.docFee?.capped) {
-    const cap = stateData.docFee.cap;
+  const docFeeCapInfo = calculateEffectiveDocFeeCap(stateData, deal.price);
+  if (docFeeCapInfo.hasCap) {
+    const cap = docFeeCapInfo.effectiveCap;
     if (docFee <= cap) feePts = 15;
     else if (docFee <= cap * 1.1) feePts = 10;
     else feePts = 5;
@@ -348,14 +410,15 @@ function generateFlags(deal, market, stateData) {
     });
   }
 
-  if (stateData?.docFee?.capped && deal.docFee > stateData.docFee.cap) {
+  const docCapInfo = calculateEffectiveDocFeeCap(stateData, deal.price);
+  if (docCapInfo.hasCap && deal.docFee > docCapInfo.effectiveCap) {
     redFlags.push({
       severity: 'critical',
       title: 'Doc Fee Exceeds Legal Cap',
-      detail: `Doc fee of $${deal.docFee} exceeds the legal maximum of $${stateData.docFee.cap} per ${stateData.docFee.law}.`,
+      detail: `Doc fee of $${deal.docFee} exceeds the legal maximum of $${docCapInfo.effectiveCap} per ${docCapInfo.law}. ${docCapInfo.explanation}`,
       action: 'Tell the dealer to reduce the doc fee to the legal limit.',
     });
-  } else if (!stateData?.docFee?.capped) {
+  } else if (!docCapInfo.hasCap) {
     const typicalDocFee = stateData?.docFee?.typical || 150;
     if (deal.docFee > typicalDocFee * 1.5) {
       redFlags.push({
@@ -541,12 +604,41 @@ function generateNegotiationScripts(deal, market, stateData) {
     });
   }
 
-  if (stateData?.docFee?.capped && deal.docFee > stateData.docFee.cap) {
-    scripts.push({
-      issue: 'Doc Fee Over Legal Cap',
-      script: `"I see the doc fee is $${deal.docFee}. Under ${stateData.docFee.law}, the maximum allowed is $${stateData.docFee.cap}. Please correct this to the legal limit."`,
-    });
+  // Doc fee negotiation — state-aware with legal cap calculation
+  const scriptDocCap = calculateEffectiveDocFeeCap(stateData, deal.price);
+  if (scriptDocCap.hasCap) {
+    const lawRef = scriptDocCap.law ? ` per ${scriptDocCap.law}` : '';
+    const stateLabel = deal.state ? `in ${deal.state}${deal.zip ? ` (based on ZIP: ${deal.zip})` : ''}` : '';
+
+    if (deal.docFee > scriptDocCap.effectiveCap) {
+      // Exceeds legal cap
+      let capText;
+      if (scriptDocCap.percentCap && scriptDocCap.capType === 'lesser-of') {
+        capText = `capped at $${scriptDocCap.flatCap} or ${(scriptDocCap.percentCap * 100).toFixed(0)}% of the vehicle's cash price, whichever is less`;
+      } else if (scriptDocCap.percentCap && scriptDocCap.capType === 'greater-of') {
+        capText = `the greater of $${scriptDocCap.flatCap} or ${(scriptDocCap.percentCap * 100).toFixed(0)}% of the vehicle's cash price`;
+      } else {
+        capText = `capped at $${scriptDocCap.flatCap}`;
+      }
+      scripts.push({
+        issue: 'Doc Fee Over Legal Cap',
+        script: `"The doc fee ${stateLabel} is ${capText}${lawRef}. For this $${deal.price.toLocaleString()} vehicle, the maximum allowed is $${scriptDocCap.effectiveCap}. You've charged $${deal.docFee} — please correct this to the legal limit of $${scriptDocCap.effectiveCap}."`,
+      });
+    } else if (scriptDocCap.percentCap && scriptDocCap.capType === 'lesser-of' && deal.docFee === scriptDocCap.flatCap && scriptDocCap.percentAmount < scriptDocCap.flatCap) {
+      // Fee is AT the flat cap but percent-based cap would be lower
+      // e.g., OH: dealer charged $398 but 10% of $15,796 = $1,580 → NOT applicable (flat is lower)
+      // This branch is skipped — keep for future reverse scenarios
+    } else if (deal.docFee > (stateData?.docFee?.typical || 150)) {
+      // Within legal cap but above typical — suggest negotiating to lower amount
+      const typical = stateData?.docFee?.typical || 150;
+      const target = Math.min(deal.docFee, Math.max(typical, 150));
+      scripts.push({
+        issue: 'High Doc Fee',
+        script: `"The doc fee ${stateLabel} is legally capped at $${scriptDocCap.effectiveCap}${lawRef}, but that's a maximum — not a required amount. The typical doc fee is around $${typical}. I'd like to negotiate this down to $${target}."`,
+      });
+    }
   } else if (deal.docFee > 300) {
+    // No state cap — use national average as reference
     scripts.push({
       issue: 'High Doc Fee',
       script: `"The doc fee of $${deal.docFee} is well above the national average of $75-150. I'd like to negotiate this down to $${Math.min(deal.docFee, 150)}."`,

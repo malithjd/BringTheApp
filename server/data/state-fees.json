@@ -175,7 +175,15 @@
     "title": { "fee": 5 }
   },
   "OH": {
-    "docFee": { "cap": null, "capped": false, "typical": 399, "law": null },
+    "docFee": {
+      "cap": 398,
+      "capped": true,
+      "percentCap": 0.10,
+      "capType": "lesser-of",
+      "typical": 250,
+      "law": "Ohio Admin Code 109:4-3-16",
+      "lawSummary": "Ohio law caps the doc fee at the lesser of $398 or 10% of the vehicle's cash price."
+    },
     "registration": { "method": "flat", "estimatedRange": [31, 31] },
     "title": { "fee": 15 }
   },
