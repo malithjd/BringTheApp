@@ -84,6 +84,21 @@ function App() {
           />
         )}
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-border mt-8 py-5 px-4">
+        <div className="max-w-3xl mx-auto text-center text-xs text-text2">
+          Built by{' '}
+          <a
+            href="https://malithjd.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent hover:text-accent-hover font-medium transition-colors"
+          >
+            malithjd.com
+          </a>
+        </div>
+      </footer>
     </div>
   );
 }
