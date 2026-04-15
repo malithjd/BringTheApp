@@ -1,10 +1,11 @@
 import { useState, useCallback, useEffect } from 'react';
+import LandingPage from './pages/LandingPage';
 import FormView from './pages/FormView';
 import ResultsView from './pages/ResultsView';
 import { initAnalytics, trackDealAnalyzed, trackStartOver } from './lib/analytics';
 
 function App() {
-  const [view, setView] = useState('form'); // 'form' | 'results'
+  const [view, setView] = useState('landing'); // 'landing' | 'form' | 'results'
 
   // Initialize analytics once on mount
   useEffect(() => { initAnalytics(); }, []);
@@ -30,7 +31,7 @@ function App() {
     setDealData(null);
     setAnalysisResult(null);
     setFormKey(k => k + 1); // remount FormView so it resets to upload mode
-    setView('form');
+    setView('landing');
     window.scrollTo(0, 0);
   }, [view]);
 
@@ -45,31 +46,35 @@ function App() {
           >
             BringTheApp
           </button>
-          <div className="flex items-center gap-3">
-            {view === 'results' && (
+          {view !== 'landing' && (
+            <div className="flex items-center gap-3">
+              {view === 'results' && (
+                <button
+                  onClick={handleEditDeal}
+                  className="text-sm text-text2 hover:text-text transition-colors"
+                >
+                  Edit Deal
+                </button>
+              )}
               <button
-                onClick={handleEditDeal}
-                className="text-sm text-text2 hover:text-text transition-colors"
+                onClick={handleNewDeal}
+                className="text-sm text-accent hover:text-accent-hover font-medium transition-colors flex items-center gap-1"
               >
-                Edit Deal
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
+                </svg>
+                Start Over
               </button>
-            )}
-            <button
-              onClick={handleNewDeal}
-              className="text-sm text-accent hover:text-accent-hover font-medium transition-colors flex items-center gap-1"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
-              </svg>
-              Start Over
-            </button>
-          </div>
+            </div>
+          )}
         </div>
       </header>
 
       {/* Main */}
       <main className="max-w-3xl mx-auto px-4 py-6">
-        {view === 'form' ? (
+        {view === 'landing' ? (
+          <LandingPage onGetStarted={() => { setView('form'); window.scrollTo(0, 0); }} />
+        ) : view === 'form' ? (
           <FormView
             key={formKey}
             initialData={dealData}
