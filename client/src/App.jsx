@@ -3,12 +3,20 @@ import LandingPage from './pages/LandingPage';
 import FormView from './pages/FormView';
 import ResultsView from './pages/ResultsView';
 import { initAnalytics, trackDealAnalyzed, trackStartOver } from './lib/analytics';
+import { initCookieConsent, analyticsAccepted, onConsentChange } from './lib/cookieconsent';
 
 function App() {
   const [view, setView] = useState('landing'); // 'landing' | 'form' | 'results'
 
-  // Initialize analytics once on mount
-  useEffect(() => { initAnalytics(); }, []);
+  // Cookie consent → conditionally init analytics
+  useEffect(() => {
+    initCookieConsent().then(() => {
+      if (analyticsAccepted()) initAnalytics();
+    });
+    onConsentChange(() => {
+      if (analyticsAccepted()) initAnalytics();
+    });
+  }, []);
   const [dealData, setDealData] = useState(null);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [formKey, setFormKey] = useState(0); // forces FormView remount on Start Over

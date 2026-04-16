@@ -105,6 +105,27 @@ input[type="number"] {
   animation: shimmer 3s ease-in-out infinite;
 }
 
+/* Cookie consent — dark theme override */
+#cc-main {
+  --cc-bg: #111827;
+  --cc-primary-color: #eef0f6;
+  --cc-secondary-color: #8892a8;
+  --cc-btn-primary-bg: #0ea5e9;
+  --cc-btn-primary-color: #fff;
+  --cc-btn-primary-hover-bg: #38bdf8;
+  --cc-btn-secondary-bg: #1a2236;
+  --cc-btn-secondary-color: #eef0f6;
+  --cc-btn-secondary-hover-bg: #232d42;
+  --cc-separator-border-color: #2d3a52;
+  --cc-cookie-category-block-bg: #0a0e17;
+  --cc-cookie-category-block-border: #2d3a52;
+  --cc-overlay-bg: rgba(10, 14, 23, 0.7);
+  --cc-toggle-on-bg: #0ea5e9;
+  --cc-toggle-off-bg: #2d3a52;
+  --cc-toggle-readonly-bg: #10b981;
+  font-family: 'DM Sans', system-ui, sans-serif;
+}
+
 .stagger > * { animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .stagger > *:nth-child(1) { animation-delay: 0ms; }
 .stagger > *:nth-child(2) { animation-delay: 80ms; }
