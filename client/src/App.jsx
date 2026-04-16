@@ -5,8 +5,26 @@ import ResultsView from './pages/ResultsView';
 import { initAnalytics, trackDealAnalyzed, trackStartOver } from './lib/analytics';
 import { initCookieConsent, analyticsAccepted, onConsentChange } from './lib/cookieconsent';
 
+/**
+ * Update the browser history so the back button works naturally.
+ * - replace=true when initial page-load or replacing current entry
+ * - replace=false (default) pushes a new entry (normal forward navigation)
+ */
+function syncHistory(view, replace = false) {
+  const state = { view };
+  if (replace) {
+    window.history.replaceState(state, '', window.location.pathname);
+  } else {
+    window.history.pushState(state, '', window.location.pathname);
+  }
+}
+
 function App() {
-  const [view, setView] = useState('landing'); // 'landing' | 'form' | 'results'
+  const [view, setView] = useState('landing');
+
+  const [dealData, setDealData] = useState(null);
+  const [analysisResult, setAnalysisResult] = useState(null);
+  const [formKey, setFormKey] = useState(0);
 
   // Cookie consent → conditionally init analytics
   useEffect(() => {
@@ -17,31 +35,55 @@ function App() {
       if (analyticsAccepted()) initAnalytics();
     });
   }, []);
-  const [dealData, setDealData] = useState(null);
-  const [analysisResult, setAnalysisResult] = useState(null);
-  const [formKey, setFormKey] = useState(0); // forces FormView remount on Start Over
+
+  // Set the initial history entry so popstate has something to land on
+  useEffect(() => {
+    syncHistory('landing', true);
+
+    const onPopState = (e) => {
+      const targetView = e.state?.view || 'landing';
+      setView(targetView);
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  const goTo = useCallback((nextView) => {
+    setView(nextView);
+    syncHistory(nextView);
+    window.scrollTo(0, 0);
+  }, []);
 
   const handleAnalysisComplete = (inputData, result) => {
     setDealData(inputData);
     setAnalysisResult(result);
-    setView('results');
-    window.scrollTo(0, 0);
+    goTo('results');
     trackDealAnalyzed(result);
   };
 
-  const handleEditDeal = () => {
-    setView('form');
-    window.scrollTo(0, 0);
-  };
-
-  const handleNewDeal = useCallback(() => {
+  // "Start Over" — keeps the landing separate; clears the deal and
+  // sends user back to the upload/form screen to begin a new analysis.
+  const handleStartOver = useCallback(() => {
     trackStartOver(view);
     setDealData(null);
     setAnalysisResult(null);
     setFormKey(k => k + 1); // remount FormView so it resets to upload mode
-    setView('landing');
-    window.scrollTo(0, 0);
-  }, [view]);
+    goTo('form');
+  }, [view, goTo]);
+
+  // Logo click — always sends user to the landing page (home)
+  const handleGoHome = useCallback(() => {
+    goTo('landing');
+  }, [goTo]);
+
+  const handleEditDeal = useCallback(() => {
+    goTo('form');
+  }, [goTo]);
+
+  const handleGetStarted = useCallback(() => {
+    goTo('form');
+  }, [goTo]);
 
   return (
     <div className="min-h-dvh bg-bg grain">
@@ -49,8 +91,9 @@ function App() {
       <header className="border-b border-border px-4 py-3 sticky top-0 bg-bg/95 backdrop-blur-sm z-50">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <button
-            onClick={handleNewDeal}
+            onClick={handleGoHome}
             className="text-lg font-semibold text-text tracking-tight hover:text-accent transition-colors cursor-pointer"
+            aria-label="Go to home page"
           >
             BringTheApp
           </button>
@@ -65,7 +108,7 @@ function App() {
                 </button>
               )}
               <button
-                onClick={handleNewDeal}
+                onClick={handleStartOver}
                 className="text-sm text-accent hover:text-accent-hover font-medium transition-colors flex items-center gap-1"
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -81,7 +124,7 @@ function App() {
       {/* Main */}
       <main className="max-w-3xl mx-auto px-4 py-6">
         {view === 'landing' ? (
-          <LandingPage onGetStarted={() => { setView('form'); window.scrollTo(0, 0); }} />
+          <LandingPage onGetStarted={handleGetStarted} />
         ) : view === 'form' ? (
           <FormView
             key={formKey}
@@ -93,7 +136,7 @@ function App() {
             dealData={dealData}
             result={analysisResult}
             onEditDeal={handleEditDeal}
-            onNewDeal={handleNewDeal}
+            onNewDeal={handleStartOver}
           />
         )}
       </main>
