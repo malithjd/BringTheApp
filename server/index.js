@@ -10,6 +10,7 @@ import vehicleRoutes from './routes/vehicle.js';
 import analyzeRoutes from './routes/analyze.js';
 import ocrRoutes from './routes/ocr.js';
 import marketRoutes from './routes/auto-dev.js';
+import pdfRoutes from './routes/pdf.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -35,6 +36,7 @@ app.use('/api/vehicle', vehicleRoutes);
 app.use('/api/analyze', analyzeRoutes);
 app.use('/api/ocr', ocrRoutes);
 app.use('/api/market', marketRoutes);
+app.use('/api/pdf', pdfRoutes);
 
 // Health check (used by UptimeRobot to prevent Render free tier sleep)
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', ts: Date.now() }));

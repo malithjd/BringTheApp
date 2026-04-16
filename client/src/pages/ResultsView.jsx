@@ -5,7 +5,7 @@ import MarketCheck from '../components/MarketCheck';
 import FlagsPanel from '../components/FlagsPanel';
 import FeeBreakdown from '../components/FeeBreakdown';
 import NegotiationTips from '../components/NegotiationTips';
-import { getVehiclePhoto } from '../lib/api';
+import { getVehiclePhoto, generatePdfReport } from '../lib/api';
 
 /** Pause so React can paint the loading UI before blocking work starts. */
 const yieldToPaint = () => new Promise(resolve => {
@@ -31,52 +31,39 @@ export default function ResultsView({ dealData, result, onEditDeal, onNewDeal })
 
   if (!result) return null;
 
-  /** Generate and download a colored PDF of the report. */
+  /** Request server-generated PDF and trigger download. */
   const handleExportPdf = async () => {
-    if (!reportRef.current) return;
-
-    // 1. Show overlay IMMEDIATELY so user gets feedback
     setExportStatus('preparing');
-    setExportMessage('Preparing your report...');
+    setExportMessage('Requesting your PDF report...');
     await yieldToPaint();
 
     try {
-      // 2. Load the library (cached after first use)
-      const html2pdf = (await import('html2pdf.js')).default;
-
       setExportStatus('rendering');
-      setExportMessage('Capturing the report. Hold on — this can take 10–20 seconds for a detailed analysis.');
+      setExportMessage('Generating your report on the server. This usually takes just a few seconds.');
       await yieldToPaint();
 
+      // 30-second timeout guard
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Server took too long to respond. Please try again.')), 30000)
+      );
+
+      const blob = await Promise.race([generatePdfReport(result), timeout]);
+
+      // Trigger browser download
       const v = result.vehicle || {};
       const filename = `BringTheApp-${v.year || ''}-${v.make || ''}-${v.model || ''}-${result.score}.pdf`
         .replace(/\s+/g, '-')
         .replace(/--+/g, '-');
 
-      // 3. Timeout safeguard — abort after 60s if something hangs
-      const generation = html2pdf()
-        .set({
-          margin: [8, 6, 8, 6],
-          filename,
-          image: { type: 'jpeg', quality: 0.92 },
-          html2canvas: {
-            scale: 1.5,                  // lower scale = faster, still sharp
-            backgroundColor: '#0a0e17',
-            useCORS: true,
-            logging: false,
-            windowWidth: 900,
-          },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
-          pagebreak: { mode: ['css', 'legacy'] },
-        })
-        .from(reportRef.current)
-        .save();
-
-      const timeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('PDF generation timed out. Try again or use Download from your browser\'s print menu.')), 60000)
-      );
-
-      await Promise.race([generation, timeout]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // Revoke after a short delay so the download has time to start
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
 
       setExportStatus('done');
       setExportMessage('Your PDF is downloading.');

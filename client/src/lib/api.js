@@ -88,6 +88,23 @@ export async function getVehiclePhoto(year, make, model, trim) {
   return fetchJSON(`/market/photo?${params}`);
 }
 
+/**
+ * Request a server-generated PDF report. Returns a Blob.
+ * Throws on network/server error.
+ */
+export async function generatePdfReport(result) {
+  const res = await fetch(`${API_BASE}/pdf/report`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ result }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || 'PDF generation failed');
+  }
+  return res.blob();
+}
+
 export async function extractDocuments(files) {
   const formData = new FormData();
   files.forEach((file) => {
