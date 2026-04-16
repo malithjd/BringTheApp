@@ -1,15 +1,25 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #09090b;
-  --color-surface: #18181b;
-  --color-surface2: #27272a;
-  --color-border: #3f3f46;
-  --color-text: #fafafa;
-  --color-text2: #a1a1aa;
-  --color-accent: #2563eb;
-  --color-accent-hover: #3b82f6;
-  --color-green: #22c55e;
+  /* Deep navy base — not zinc-gray */
+  --color-bg: #0a0e17;
+  --color-surface: #111827;
+  --color-surface2: #1a2236;
+  --color-surface3: #232d42;
+  --color-border: #2d3a52;
+  --color-border-subtle: #232f48;
+
+  /* Warm text — not pure white */
+  --color-text: #eef0f6;
+  --color-text2: #8892a8;
+
+  /* Teal-cyan accent — authority without being generic blue */
+  --color-accent: #0ea5e9;
+  --color-accent-hover: #38bdf8;
+  --color-accent-muted: #0c4a6e;
+
+  /* Semantic colors — refined */
+  --color-green: #10b981;
   --color-amber: #f59e0b;
   --color-red: #ef4444;
 }
@@ -19,15 +29,22 @@
 }
 
 html {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
   background-color: var(--color-bg);
   color: var(--color-text);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
   margin: 0;
   min-height: 100dvh;
+}
+
+/* Headlines use Plus Jakarta Sans — sharp geometric character */
+h1, h2, h3 {
+  font-family: 'Plus Jakarta Sans', 'DM Sans', system-ui, sans-serif;
+  letter-spacing: -0.025em;
 }
 
 input[type="number"]::-webkit-inner-spin-button,
@@ -37,6 +54,17 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 input[type="number"] {
   -moz-appearance: textfield;
+}
+
+/* Subtle noise grain — adds texture to flat backgrounds */
+.grain::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 /* Animations */
@@ -50,12 +78,17 @@ input[type="number"] {
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
-  50% { box-shadow: 0 0 0 8px rgba(37, 99, 235, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.3); }
+  50% { box-shadow: 0 0 0 8px rgba(14, 165, 233, 0); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
 .animate-fade-up {
-  animation: fadeUp 0.4s ease-out both;
+  animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .animate-score-reveal {
@@ -66,7 +99,13 @@ input[type="number"] {
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
-.stagger > * { animation: fadeUp 0.4s ease-out both; }
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(14,165,233,0.06) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+.stagger > * { animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .stagger > *:nth-child(1) { animation-delay: 0ms; }
 .stagger > *:nth-child(2) { animation-delay: 80ms; }
 .stagger > *:nth-child(3) { animation-delay: 160ms; }

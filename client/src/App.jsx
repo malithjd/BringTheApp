@@ -36,7 +36,7 @@ function App() {
   }, [view]);
 
   return (
-    <div className="min-h-dvh bg-bg">
+    <div className="min-h-dvh bg-bg grain">
       {/* Header */}
       <header className="border-b border-border px-4 py-3 sticky top-0 bg-bg/95 backdrop-blur-sm z-50">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
