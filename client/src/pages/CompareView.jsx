@@ -2,9 +2,9 @@ import { useState } from 'react';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const fmt = (n, prefix = '') =>
-  n != null ? `${prefix}${Number(n).toLocaleString()}` : '—';
+  n != null && n !== '' ? `${prefix}${Number(n).toLocaleString()}` : '—';
 
-const fmtPct = n => (n != null ? `${n}%` : '—');
+const fmtPct = n => (n != null && n !== '' ? `${n}%` : '—');
 
 function scoreColor(score) {
   if (score >= 70) return 'var(--color-green)';
@@ -31,7 +31,7 @@ function MiniGauge({ score }) {
   const offset = circ * (1 - (score ?? 0) / 100);
   const color = scoreColor(score);
   return (
-    <svg width="110" height="110" viewBox="-8 -8 116 116" className="mx-auto">
+    <svg width="100" height="100" viewBox="-8 -8 116 116" className="mx-auto">
       <circle cx="50" cy="50" r={r} fill="none" stroke="var(--color-surface2)" strokeWidth="7" strokeLinecap="round" />
       <circle
         cx="50" cy="50" r={r} fill="none"
@@ -40,7 +40,7 @@ function MiniGauge({ score }) {
         transform="rotate(-90 50 50)"
         style={{ filter: `drop-shadow(0 0 5px ${color})`, transition: 'stroke-dashoffset 1s ease' }}
       />
-      <text x="50" y="45" textAnchor="middle" fill={color} fontSize="20" fontWeight="700" fontFamily="Plus Jakarta Sans,sans-serif">{score}</text>
+      <text x="50" y="45" textAnchor="middle" fill={color} fontSize="20" fontWeight="700" fontFamily="Plus Jakarta Sans,sans-serif">{score ?? '—'}</text>
       <text x="50" y="58" textAnchor="middle" fill="var(--color-text2)" fontSize="7">out of 100</text>
     </svg>
   );
@@ -48,68 +48,55 @@ function MiniGauge({ score }) {
 
 // ─── Delta badge ──────────────────────────────────────────────────────────────
 function Delta({ a, b, prefix = '', invert = false }) {
-  if (a == null || b == null) return null;
+  if (a == null || b == null || a === '' || b === '') return <span className="text-text2 text-[10px]">—</span>;
   const diff = Number(a) - Number(b);
-  if (diff === 0) return <span className="text-text2 text-[10px]">same</span>;
+  if (Math.abs(diff) < 1) return <span className="text-text2 text-[10px]">same</span>;
   const positive = invert ? diff < 0 : diff > 0;
   return (
     <span className={`text-[10px] font-semibold ${positive ? 'text-green' : 'text-red'}`}>
-      {diff > 0 ? '+' : ''}{prefix}{Number(diff).toLocaleString()}
+      {diff > 0 ? '+' : ''}{prefix}{Math.abs(Number(diff)).toLocaleString()}
     </span>
   );
 }
 
-// ─── Section wrapper ──────────────────────────────────────────────────────────
-function CompareSection({ title, children }) {
-  return (
-    <div>
-      <h3 className="text-[10px] font-semibold text-text2 uppercase tracking-widest mb-3">{title}</h3>
-      {children}
-    </div>
-  );
-}
-
 // ─── Single column ────────────────────────────────────────────────────────────
-function Column({ report, highlight }) {
+function Column({ report }) {
   const r = report?.result ?? {};
   const d = report?.deal_data ?? {};
   const v = r?.vehicle ?? {};
-  const summary = r?.summary ?? {};
-  const market = r?.market ?? {};
-  const flags = r?.flags ?? [];
-  const breakdown = r?.breakdown ?? [];
-
-  const redFlags = flags.filter(f => f.severity === 'red');
-  const amberFlags = flags.filter(f => f.severity === 'amber');
-  const greenFlags = flags.filter(f => f.severity === 'green');
+  const entered = r?.entered ?? {};
+  const calculated = r?.calculated ?? {};
+  const factors = r?.factors ?? [];
+  const redFlags = r?.flags?.redFlags ?? [];
+  const greenFlags = r?.flags?.greenFlags ?? [];
+  const marketRef = r?.market?.reference ?? r?.market?.calculated ?? {};
 
   return (
-    <div className={`flex flex-col gap-5 ${highlight ? 'opacity-100' : 'opacity-85'}`}>
+    <div className="flex flex-col gap-3">
       {/* Gauge + label */}
-      <div className="bg-bg border border-border rounded-2xl p-5 text-center">
+      <div className="bg-bg border border-border rounded-xl p-4 text-center">
         <MiniGauge score={r.score} />
-        <span className={`inline-block mt-2 px-3 py-1 rounded-full text-xs font-semibold border ${scoreLabelClass(r.score)}`}>
+        <span className={`inline-block mt-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${scoreLabelClass(r.score)}`}>
           {scoreLabel(r.score)}
         </span>
-        <p className="mt-2 text-text2 text-xs">
-          {[v.year, v.make, v.model, v.trim].filter(Boolean).join(' ') || report?.name || 'Vehicle'}
+        <p className="mt-1.5 text-text2 text-[10px] truncate">
+          {[v.year, v.make, v.model].filter(Boolean).join(' ') || report?.name || 'Vehicle'}
         </p>
-        <p className="text-text2 text-[10px] mt-0.5">{report?.name}</p>
       </div>
 
       {/* Key numbers */}
-      <div className="bg-bg border border-border rounded-2xl p-4 space-y-2 text-xs">
+      <div className="bg-bg border border-border rounded-xl p-3 space-y-1.5">
         {[
-          ['Price', fmt(summary.vehiclePrice ?? d.vehiclePrice, '$')],
-          ['Down', fmt(summary.downPayment ?? d.downPayment, '$')],
-          ['APR', fmtPct(summary.apr ?? d.apr)],
-          ['Term', summary.loanTerm ? `${summary.loanTerm} mo` : '—'],
-          ['Monthly', fmt(summary.monthlyPayment, '$')],
-          ['Total Cost', fmt(summary.totalCost, '$')],
-          ['Sales Tax', fmt(summary.salesTax, '$')],
-          ['Doc Fee', fmt(summary.docFee, '$')],
+          ['Price', fmt(entered.price ?? d.price, '$')],
+          ['Down', fmt(entered.down ?? d.down, '$')],
+          ['APR', fmtPct(entered.apr ?? d.apr)],
+          ['Term', (entered.term || d.term) ? `${entered.term || d.term} mo` : '—'],
+          ['Monthly', fmt(calculated.monthlyPayment, '$')],
+          ['Total', fmt(calculated.totalCost, '$')],
+          ['Tax', fmt(calculated.taxAmount, '$')],
+          ['Doc Fee', fmt(calculated.docFee, '$')],
         ].map(([k, val]) => (
-          <div key={k} className="flex justify-between">
+          <div key={k} className="flex justify-between text-[11px]">
             <span className="text-text2">{k}</span>
             <span className="text-text tabular-nums font-medium">{val}</span>
           </div>
@@ -117,51 +104,43 @@ function Column({ report, highlight }) {
       </div>
 
       {/* Market */}
-      <div className="bg-bg border border-border rounded-2xl p-4 text-xs space-y-2">
-        <div className="flex justify-between">
-          <span className="text-text2">Fair Value</span>
-          <span className="text-text tabular-nums font-medium">{fmt(market.fairValue, '$')}</span>
+      <div className="bg-bg border border-border rounded-xl p-3 space-y-1.5">
+        <div className="flex justify-between text-[11px]">
+          <span className="text-text2">Market Est.</span>
+          <span className="text-text tabular-nums font-medium">{fmt(marketRef.estimated, '$')}</span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-text2">Market Avg</span>
-          <span className="text-text tabular-nums font-medium">{fmt(market.avgPrice, '$')}</span>
-        </div>
-        <div className="flex justify-between">
+        <div className="flex justify-between text-[11px]">
           <span className="text-text2">Your Price</span>
-          <span className="text-text tabular-nums font-medium">{fmt(summary.vehiclePrice ?? d.vehiclePrice, '$')}</span>
+          <span className="text-text tabular-nums font-medium">{fmt(entered.price ?? d.price, '$')}</span>
         </div>
       </div>
 
-      {/* Flags summary */}
-      <div className="bg-bg border border-border rounded-2xl p-4 text-xs space-y-2">
-        <div className="flex justify-between">
+      {/* Flags */}
+      <div className="bg-bg border border-border rounded-xl p-3 space-y-1.5">
+        <div className="flex justify-between text-[11px]">
           <span className="text-text2">Red flags</span>
           <span className="text-red font-semibold">{redFlags.length}</span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-text2">Warnings</span>
-          <span className="text-amber font-semibold">{amberFlags.length}</span>
-        </div>
-        <div className="flex justify-between">
+        <div className="flex justify-between text-[11px]">
           <span className="text-text2">Positives</span>
           <span className="text-green font-semibold">{greenFlags.length}</span>
         </div>
       </div>
 
-      {/* Score breakdown */}
-      {breakdown.length > 0 && (
-        <div className="bg-bg border border-border rounded-2xl p-4 space-y-2.5">
-          {breakdown.map(f => {
-            const pct = Math.round((f.score / f.max) * 100);
+      {/* Score factors */}
+      {factors.length > 0 && (
+        <div className="bg-bg border border-border rounded-xl p-3 space-y-2">
+          {factors.map(f => {
+            const pct = f.max > 0 ? Math.round((f.points / f.max) * 100) : 0;
             const color = pct >= 70 ? 'var(--color-green)' : pct >= 40 ? 'var(--color-amber)' : 'var(--color-red)';
             return (
-              <div key={f.factor}>
-                <div className="flex justify-between text-[11px] mb-1">
-                  <span className="text-text2">{f.factor}</span>
-                  <span style={{ color }} className="font-semibold tabular-nums">{f.score}/{f.max}</span>
+              <div key={f.name}>
+                <div className="flex justify-between text-[10px] mb-0.5">
+                  <span className="text-text2 truncate pr-1">{f.name}</span>
+                  <span style={{ color }} className="font-semibold tabular-nums flex-shrink-0">{f.points}/{f.max}</span>
                 </div>
                 <div className="h-1 bg-surface2 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
+                  <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
                 </div>
               </div>
             );
@@ -179,15 +158,24 @@ export default function CompareView({ reportA, reportB, onBack }) {
 
   const ra = left?.result ?? {};
   const rb = right?.result ?? {};
-  const sa = ra?.summary ?? {};
-  const sb = rb?.summary ?? {};
-  const da = left?.deal_data ?? {};
-  const db = right?.deal_data ?? {};
+
+  // Guard: no reports loaded (e.g. direct URL navigation)
+  if (!reportA && !reportB) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-up">
+        <p className="text-text font-semibold mb-2">No reports to compare</p>
+        <p className="text-text2 text-sm mb-5">Open your saved reports and select two to compare.</p>
+        <button onClick={onBack} className="px-4 py-2 text-sm text-accent border border-accent/30 rounded-lg hover:bg-accent/8 transition-colors">
+          Open saved reports
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-up">
       {/* Top bar */}
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center gap-3 mb-5">
         <button
           onClick={onBack}
           className="flex items-center gap-1.5 text-text2 hover:text-text text-sm transition-colors"
@@ -197,68 +185,66 @@ export default function CompareView({ reportA, reportB, onBack }) {
           </svg>
           Back
         </button>
-        <div className="flex-1" />
+        <h2 className="flex-1 text-base font-bold text-text">Side-by-Side</h2>
         <button
           onClick={() => setSwapped(s => !s)}
-          className="flex items-center gap-1.5 text-sm text-text2 hover:text-accent transition-colors"
+          className="flex items-center gap-1 text-xs text-text2 hover:text-accent transition-colors"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
           </svg>
           Swap
         </button>
       </div>
 
-      <h2 className="text-xl font-extrabold text-text mb-1">Side-by-Side Comparison</h2>
-      <p className="text-text2 text-sm mb-6">Tap a report to open it. Differences are highlighted.</p>
-
       {/* Score delta banner */}
       {ra.score != null && rb.score != null && (
-        <div className="mb-6 p-4 rounded-2xl bg-surface border border-border flex items-center gap-4">
-          <div className="text-center flex-1">
+        <div className="mb-4 p-4 rounded-xl bg-surface border border-border flex items-center gap-3">
+          <div className="text-center flex-1 min-w-0">
             <p className="text-2xl font-extrabold tabular-nums" style={{ color: scoreColor(ra.score) }}>
               {ra.score}
             </p>
-            <p className="text-text2 text-xs truncate max-w-[100px] mx-auto">{left?.name || 'Report A'}</p>
+            <p className="text-text2 text-[10px] truncate">{left?.name || 'Report A'}</p>
           </div>
-          <div className="text-center">
-            <div className={`text-lg font-bold tabular-nums ${ra.score > rb.score ? 'text-green' : ra.score < rb.score ? 'text-red' : 'text-text2'}`}>
+          <div className="text-center flex-shrink-0">
+            <div className={`text-base font-bold tabular-nums ${ra.score > rb.score ? 'text-green' : ra.score < rb.score ? 'text-red' : 'text-text2'}`}>
               {ra.score > rb.score ? `+${ra.score - rb.score}` : ra.score < rb.score ? `${ra.score - rb.score}` : '='}
             </div>
-            <p className="text-text2 text-[10px]">score diff</p>
+            <p className="text-text2 text-[9px]">pts</p>
           </div>
-          <div className="text-center flex-1">
+          <div className="text-center flex-1 min-w-0">
             <p className="text-2xl font-extrabold tabular-nums" style={{ color: scoreColor(rb.score) }}>
               {rb.score}
             </p>
-            <p className="text-text2 text-xs truncate max-w-[100px] mx-auto">{right?.name || 'Report B'}</p>
+            <p className="text-text2 text-[10px] truncate">{right?.name || 'Report B'}</p>
           </div>
         </div>
       )}
 
-      {/* Price delta */}
-      <div className="mb-6 grid grid-cols-3 gap-3 text-center text-xs">
+      {/* Delta chips */}
+      <div className="mb-4 grid grid-cols-3 gap-2 text-center text-xs">
         {[
-          { label: 'Price diff', a: sa.vehiclePrice ?? da.vehiclePrice, b: sb.vehiclePrice ?? db.vehiclePrice, prefix: '$', invert: true },
-          { label: 'Monthly diff', a: sa.monthlyPayment, b: sb.monthlyPayment, prefix: '$', invert: true },
-          { label: 'Total cost diff', a: sa.totalCost, b: sb.totalCost, prefix: '$', invert: true },
+          { label: 'Price', a: ra.entered?.price, b: rb.entered?.price, prefix: '$', invert: true },
+          { label: 'Monthly', a: ra.calculated?.monthlyPayment, b: rb.calculated?.monthlyPayment, prefix: '$', invert: true },
+          { label: 'Total cost', a: ra.calculated?.totalCost, b: rb.calculated?.totalCost, prefix: '$', invert: true },
         ].map(({ label, a, b, prefix, invert }) => (
-          <div key={label} className="bg-surface border border-border rounded-xl p-3">
+          <div key={label} className="bg-surface border border-border rounded-xl p-2.5">
             <Delta a={a} b={b} prefix={prefix} invert={invert} />
-            <p className="text-text2 mt-1">{label}</p>
+            <p className="text-text2 text-[10px] mt-0.5">{label}</p>
           </div>
         ))}
       </div>
 
+      {/* Column headers */}
+      <div className="grid grid-cols-2 gap-3 mb-1.5 px-0.5">
+        <p className="text-xs font-semibold text-text truncate">{left?.name || 'Report A'}</p>
+        <p className="text-xs font-semibold text-text truncate">{right?.name || 'Report B'}</p>
+      </div>
+
       {/* Two-column layout */}
       <div className="grid grid-cols-2 gap-3">
-        {/* Left column header */}
-        <div className="text-xs font-semibold text-text truncate px-1">{left?.name || 'Report A'}</div>
-        <div className="text-xs font-semibold text-text truncate px-1">{right?.name || 'Report B'}</div>
-
-        {/* Columns */}
-        <Column report={left} highlight={ra.score >= rb.score} />
-        <Column report={right} highlight={rb.score >= ra.score} />
+        <Column report={left} />
+        <Column report={right} />
       </div>
     </div>
   );
