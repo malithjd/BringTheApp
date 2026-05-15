@@ -31,5 +31,7 @@ services:
         sync: false  # set manually in dashboard
       - key: VITE_SUPABASE_ANON_KEY
         sync: false  # set manually in dashboard
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false  # set manually in dashboard — never expose to client
     healthCheckPath: /api/health
     autoDeploy: true

@@ -3,6 +3,7 @@ import LandingPage from './pages/LandingPage';
 import FormView from './pages/FormView';
 import ResultsView from './pages/ResultsView';
 import CompareView from './pages/CompareView';
+import AccountPage from './pages/AccountPage';
 import AuthModal from './components/AuthModal';
 import SavedReports from './components/SavedReports';
 import { AuthProvider, useAuth } from './lib/auth.jsx';
@@ -10,38 +11,46 @@ import { fetchReports } from './lib/reports';
 import { initAnalytics, trackDealAnalyzed, trackStartOver } from './lib/analytics';
 import { initCookieConsent, analyticsAccepted, onConsentChange } from './lib/cookieconsent';
 
+const PATH_TO_VIEW = {
+  '/': 'landing',
+  '/analyze': 'form',
+  '/results': 'results',
+  '/compare': 'compare',
+  '/account': 'account',
+};
+const VIEW_TO_PATH = Object.fromEntries(Object.entries(PATH_TO_VIEW).map(([p, v]) => [v, p]));
+
+function pathToView(pathname) {
+  return PATH_TO_VIEW[pathname] ?? 'landing';
+}
+
 function syncHistory(view, replace = false) {
+  const path = VIEW_TO_PATH[view] ?? '/';
   const state = { view };
   if (replace) {
-    window.history.replaceState(state, '', window.location.pathname);
+    window.history.replaceState(state, '', path);
   } else {
-    window.history.pushState(state, '', window.location.pathname);
+    window.history.pushState(state, '', path);
   }
 }
 
 function AppInner() {
-  const { user, signOut } = useAuth();
-  const [view, setView] = useState('landing');
+  const { user, signOut, passwordRecovery } = useAuth();
+  const [view, setView] = useState(() => pathToView(window.location.pathname));
   const [dealData, setDealData] = useState(null);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [formKey, setFormKey] = useState(0);
 
-  // Auth modal
   const [showAuth, setShowAuth] = useState(false);
-  // Saved reports drawer
   const [showSavedReports, setShowSavedReports] = useState(false);
-  // Compare view data
-  const [compareReports, setCompareReports] = useState(null); // { a, b }
-  // Saved report count (for cap check in ResultsView)
+  const [compareReports, setCompareReports] = useState(null);
   const [savedCount, setSavedCount] = useState(0);
 
-  // Load saved count when user changes
   useEffect(() => {
     if (!user) { setSavedCount(0); return; }
     fetchReports().then(r => setSavedCount(r.length)).catch(() => {});
   }, [user]);
 
-  // Cookie consent → analytics
   useEffect(() => {
     initCookieConsent().then(() => {
       if (analyticsAccepted()) initAnalytics();
@@ -51,17 +60,23 @@ function AppInner() {
     });
   }, []);
 
-  // Browser history
+  // Seed history state on mount and listen for back/forward
   useEffect(() => {
-    syncHistory('landing', true);
+    const currentView = pathToView(window.location.pathname);
+    window.history.replaceState({ view: currentView }, '', window.location.pathname);
     const onPopState = (e) => {
-      const targetView = e.state?.view || 'landing';
+      const targetView = e.state?.view || pathToView(window.location.pathname);
       setView(targetView);
       window.scrollTo(0, 0);
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
+
+  // If Supabase sends a password recovery token, redirect to /account
+  useEffect(() => {
+    if (passwordRecovery) goTo('account');
+  }, [passwordRecovery]);
 
   const goTo = useCallback((nextView) => {
     setView(nextView);
@@ -88,25 +103,18 @@ function AppInner() {
   const handleEditDeal = useCallback(() => goTo('form'), [goTo]);
   const handleGetStarted = useCallback(() => goTo('form'), [goTo]);
 
-  // Called by ResultsView when save button is clicked
   const handleSaveReport = useCallback((action) => {
     if (action === 'auth') { setShowAuth(true); return; }
-    if (action === 'limit') {
-      setShowSavedReports(true); return; // show reports so they can delete one
-    }
-    if (action === 'saved') {
-      setSavedCount(n => n + 1);
-    }
+    if (action === 'limit') { setShowSavedReports(true); return; }
+    if (action === 'saved') { setSavedCount(n => n + 1); }
   }, []);
 
-  // Open a saved report in results view
   const handleLoadReport = useCallback((report) => {
     setDealData(report.deal_data);
     setAnalysisResult(report.result);
     goTo('results');
   }, [goTo]);
 
-  // Kick off compare view
   const handleCompare = useCallback((a, b) => {
     setCompareReports({ a, b });
     goTo('compare');
@@ -115,6 +123,7 @@ function AppInner() {
   const isCompare = view === 'compare';
   const isResults = view === 'results';
   const isLanding = view === 'landing';
+  const isAccount = view === 'account';
 
   return (
     <div className="min-h-dvh bg-bg grain">
@@ -130,7 +139,7 @@ function AppInner() {
           </button>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Saved reports button — always show if logged in */}
+            {/* Saved reports */}
             {user && (
               <button
                 onClick={() => setShowSavedReports(true)}
@@ -149,8 +158,8 @@ function AppInner() {
               </button>
             )}
 
-            {/* Nav actions for non-landing views */}
-            {!isLanding && !isCompare && (
+            {/* Nav actions */}
+            {!isLanding && !isCompare && !isAccount && (
               <>
                 {isResults && (
                   <button
@@ -172,7 +181,7 @@ function AppInner() {
               </>
             )}
 
-            {/* Auth button */}
+            {/* Auth controls */}
             {user === null && (
               <button
                 onClick={() => setShowAuth(true)}
@@ -182,15 +191,24 @@ function AppInner() {
               </button>
             )}
             {user && (
-              <button
-                onClick={signOut}
-                className="text-sm text-text2 hover:text-text transition-colors"
-                title={user.email}
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => goTo('account')}
+                  title={`Account · ${user.email}`}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${isAccount ? 'bg-accent text-white' : 'bg-surface2 border border-border text-text2 hover:border-accent/50 hover:text-text'}`}
+                >
+                  {user.email?.[0]?.toUpperCase() ?? '?'}
+                </button>
+                <button
+                  onClick={signOut}
+                  className="text-sm text-text2 hover:text-text transition-colors"
+                  title="Sign out"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                  </svg>
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -212,6 +230,8 @@ function AppInner() {
             reportB={compareReports?.b}
             onBack={() => setShowSavedReports(true)}
           />
+        ) : view === 'account' ? (
+          <AccountPage onGoHome={handleGoHome} />
         ) : (
           <ResultsView
             dealData={dealData}
@@ -240,10 +260,8 @@ function AppInner() {
         </div>
       </footer>
 
-      {/* Auth modal */}
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
 
-      {/* Saved reports drawer */}
       {showSavedReports && (
         <SavedReports
           onLoad={handleLoadReport}
