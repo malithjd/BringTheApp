@@ -6,16 +6,20 @@ import FlagsPanel from '../components/FlagsPanel';
 import FeeBreakdown from '../components/FeeBreakdown';
 import NegotiationTips from '../components/NegotiationTips';
 import { getVehiclePhoto, generatePdfReport } from '../lib/api';
+import { saveReport, MAX_REPORTS } from '../lib/reports';
 
 /** Pause so React can paint the loading UI before blocking work starts. */
 const yieldToPaint = () => new Promise(resolve => {
   requestAnimationFrame(() => requestAnimationFrame(resolve));
 });
 
-export default function ResultsView({ dealData, result, onEditDeal, onNewDeal }) {
+export default function ResultsView({ dealData, result, onEditDeal, onNewDeal, onSaveReport, user, savedCount }) {
   const [exportStatus, setExportStatus] = useState(null); // null | 'preparing' | 'rendering' | 'saving' | 'done' | 'error'
   const [exportMessage, setExportMessage] = useState('');
   const [photoUrl, setPhotoUrl] = useState(null);
+  const [saveStatus, setSaveStatus] = useState(null); // null | 'naming' | 'saving' | 'saved' | 'error'
+  const [saveName, setSaveName] = useState('');
+  const [saveError, setSaveError] = useState('');
   const reportRef = useRef(null);
 
   useEffect(() => {
@@ -93,6 +97,32 @@ export default function ResultsView({ dealData, result, onEditDeal, onNewDeal })
 
   const isExporting = exportStatus && exportStatus !== 'done' && exportStatus !== 'error';
 
+  const autoName = () => {
+    const v = result?.vehicle ?? {};
+    return [v.year, v.make, v.model].filter(Boolean).join(' ') || 'My Deal';
+  };
+
+  const handleSaveClick = () => {
+    if (!user) { onSaveReport?.('auth'); return; }
+    if (savedCount >= MAX_REPORTS) { onSaveReport?.('limit'); return; }
+    setSaveName(autoName());
+    setSaveStatus('naming');
+  };
+
+  const handleSaveConfirm = async () => {
+    setSaveStatus('saving');
+    try {
+      await saveReport({ name: saveName || autoName(), dealData, result });
+      setSaveStatus('saved');
+      onSaveReport?.('saved');
+      setTimeout(() => setSaveStatus(null), 2500);
+    } catch (e) {
+      setSaveError(e.message);
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus(null), 3000);
+    }
+  };
+
   return (
     <div className="stagger space-y-4 pb-8">
       <div ref={reportRef} className="space-y-4">
@@ -169,6 +199,48 @@ export default function ResultsView({ dealData, result, onEditDeal, onNewDeal })
 
       </div>
 
+      {/* Save Report */}
+      {saveStatus === 'naming' && (
+        <div className="flex gap-2 items-center p-4 bg-surface border border-accent/30 rounded-xl animate-fade-up">
+          <input
+            autoFocus
+            type="text"
+            value={saveName}
+            onChange={e => setSaveName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSaveConfirm()}
+            placeholder="Report name..."
+            className="flex-1 bg-surface2 border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-accent"
+          />
+          <button
+            onClick={handleSaveConfirm}
+            className="px-4 py-2 bg-accent text-white text-sm font-semibold rounded-lg hover:bg-accent-hover transition-colors"
+          >
+            Save
+          </button>
+          <button
+            onClick={() => setSaveStatus(null)}
+            className="px-3 py-2 text-text2 hover:text-text text-sm transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {saveStatus === 'saved' && (
+        <div className="flex items-center gap-2 p-4 bg-green/8 border border-green/20 rounded-xl text-green text-sm font-medium animate-fade-up">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+          </svg>
+          Report saved — find it in Saved Reports
+        </div>
+      )}
+
+      {saveStatus === 'error' && (
+        <div className="p-4 bg-red/8 border border-red/20 rounded-xl text-red text-sm animate-fade-up">
+          {saveError}
+        </div>
+      )}
+
       {/* Export actions */}
       <div className="grid grid-cols-2 gap-3">
         <button
@@ -203,18 +275,35 @@ export default function ResultsView({ dealData, result, onEditDeal, onNewDeal })
       </div>
 
       {/* Action Buttons */}
-      <div className="flex gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <button
           onClick={onEditDeal}
           disabled={isExporting}
-          className="flex-1 py-3 bg-surface border border-border text-text font-semibold rounded-xl hover:bg-surface2 transition-colors disabled:opacity-60"
+          className="py-3 bg-surface border border-border text-text font-semibold rounded-xl hover:bg-surface2 transition-colors disabled:opacity-60 text-sm"
         >
           Edit Deal
         </button>
         <button
+          onClick={handleSaveClick}
+          disabled={isExporting || saveStatus === 'saving' || saveStatus === 'naming'}
+          className="py-3 bg-surface border border-accent/40 text-accent font-semibold rounded-xl hover:bg-accent/8 transition-colors disabled:opacity-60 text-sm flex items-center justify-center gap-1.5"
+        >
+          {saveStatus === 'saving' ? (
+            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+          ) : (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" />
+            </svg>
+          )}
+          Save
+        </button>
+        <button
           onClick={onNewDeal}
           disabled={isExporting}
-          className="flex-1 py-3 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition-colors disabled:opacity-60"
+          className="py-3 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition-colors disabled:opacity-60 text-sm"
         >
           New Deal
         </button>

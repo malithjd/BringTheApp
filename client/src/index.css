@@ -1,27 +1,27 @@
 @import "tailwindcss";
 
 @theme {
-  /* Deep navy base — not zinc-gray */
-  --color-bg: #0a0e17;
-  --color-surface: #111827;
-  --color-surface2: #1a2236;
-  --color-surface3: #232d42;
-  --color-border: #2d3a52;
-  --color-border-subtle: #232f48;
+  /* Deep navy base */
+  --color-bg: #02021a;
+  --color-surface: #0d0d2b;
+  --color-surface2: #141432;
+  --color-surface3: #1c1c3e;
+  --color-border: #252548;
+  --color-border-subtle: #1c1c3a;
 
-  /* Warm text — not pure white */
-  --color-text: #eef0f6;
-  --color-text2: #8892a8;
+  /* Crisp white text */
+  --color-text: #f0f0ff;
+  --color-text2: #7878a8;
 
-  /* Teal-cyan accent — authority without being generic blue */
-  --color-accent: #0ea5e9;
-  --color-accent-hover: #38bdf8;
-  --color-accent-muted: #0c4a6e;
+  /* Electric cyan — the signature BringTheApp color */
+  --color-accent: #00d4ff;
+  --color-accent-hover: #33deff;
+  --color-accent-muted: #003d4d;
 
-  /* Semantic colors — refined */
-  --color-green: #10b981;
-  --color-amber: #f59e0b;
-  --color-red: #ef4444;
+  /* Semantic colors */
+  --color-green: #00e5a0;
+  --color-amber: #ffb800;
+  --color-red: #ff4d6a;
 }
 
 * {

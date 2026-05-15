@@ -27,5 +27,9 @@ services:
         sync: false
       - key: PAID_FEATURES
         value: "true"
+      - key: VITE_SUPABASE_URL
+        sync: false  # set manually in dashboard
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false  # set manually in dashboard
     healthCheckPath: /api/health
     autoDeploy: true
