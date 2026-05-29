@@ -772,7 +772,7 @@ router.post('/', async (req, res) => {
       score: scoring.score,
       label: scoring.label,
       factors: scoring.factors,
-      vehicle: { year, make, model, trim, condition: effectiveCondition, mileage },
+      vehicle: { year, make, model, trim, condition: effectiveCondition, conditionCorrected: effectiveCondition !== condition, mileage },
       entered: {
         price: parseFloat(price),
         down: parseFloat(down) || 0,

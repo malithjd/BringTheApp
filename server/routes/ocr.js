@@ -710,7 +710,7 @@ router.post('/extract', upload.array('documents', 10), async (req, res) => {
     }
 
     // From base64 array in body
-    if (req.body.images && Array.isArray(req.body.images)) {
+    if (req.body?.images && Array.isArray(req.body.images)) {
       for (let i = 0; i < req.body.images.length; i++) {
         const raw = req.body.images[i];
         const b64 = raw.replace(/^data:image\/\w+;base64,/, '');
