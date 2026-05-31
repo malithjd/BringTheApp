@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { fetchReports, deleteReport, MAX_REPORTS } from '../lib/reports';
 
 function timeAgo(dateStr) {
@@ -27,6 +27,38 @@ export default function SavedReports({ onLoad, onCompare, onClose }) {
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [selected, setSelected] = useState([]); // for compare mode (max 2)
+
+  const modalRef = useRef(null);
+  const previousFocusRef = useRef(null);
+
+  useEffect(() => {
+    previousFocusRef.current = document.activeElement;
+    const focusable = modalRef.current?.querySelector('button:not([disabled]), input:not([disabled])');
+    focusable?.focus();
+    return () => { previousFocusRef.current?.focus(); };
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key !== 'Tab') return;
+      const focusable = Array.from(
+        modalRef.current?.querySelectorAll(
+          'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        ) ?? []
+      );
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault(); last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault(); first.focus();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   useEffect(() => {
     fetchReports()
@@ -64,14 +96,20 @@ export default function SavedReports({ onLoad, onCompare, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+    <div className="fixed inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4" style={{ zIndex: 'var(--z-modal)' }}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
 
-      <div className="relative w-full sm:max-w-md bg-surface border border-border rounded-t-2xl sm:rounded-2xl shadow-2xl animate-fade-up max-h-[85dvh] flex flex-col">
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="saved-reports-title"
+        className="relative w-full sm:max-w-md bg-surface border border-border rounded-t-2xl sm:rounded-2xl shadow-2xl animate-fade-up max-h-[85dvh] flex flex-col"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
           <div>
-            <h2 className="font-bold text-text text-base">Saved Reports</h2>
+            <h2 id="saved-reports-title" className="font-bold text-text text-base">Saved Reports</h2>
             <p className="text-text2 text-xs mt-0.5">{reports.length}/{MAX_REPORTS} slots used</p>
           </div>
           <div className="flex items-center gap-2">

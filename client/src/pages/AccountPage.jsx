@@ -102,7 +102,7 @@ export default function AccountPage({ onGoHome }) {
                 required
                 minLength={6}
                 placeholder="New password (min 6 chars)"
-                className="w-full px-3 py-2.5 bg-surface2 border border-border rounded-lg text-sm text-text placeholder:text-text2/50 focus:outline-none focus:border-accent transition-colors"
+                className="w-full px-3 py-2.5 bg-surface2 border border-border rounded-lg text-sm text-text placeholder:text-text2 focus:outline-none focus:border-accent transition-colors"
               />
               <input
                 type="password"
@@ -111,7 +111,7 @@ export default function AccountPage({ onGoHome }) {
                 required
                 minLength={6}
                 placeholder="Confirm new password"
-                className="w-full px-3 py-2.5 bg-surface2 border border-border rounded-lg text-sm text-text placeholder:text-text2/50 focus:outline-none focus:border-accent transition-colors"
+                className="w-full px-3 py-2.5 bg-surface2 border border-border rounded-lg text-sm text-text placeholder:text-text2 focus:outline-none focus:border-accent transition-colors"
               />
               {resetStatus?.error && (
                 <p className="text-red text-xs">{resetStatus.error}</p>

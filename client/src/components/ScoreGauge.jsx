@@ -4,13 +4,16 @@ export default function ScoreGauge({ score, label, vehicle, photoUrl }) {
   const [animatedScore, setAnimatedScore] = useState(0);
 
   useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setAnimatedScore(score);
+      return;
+    }
     let frame;
     const start = performance.now();
     const duration = 1200;
     const animate = (now) => {
       const elapsed = now - start;
       const progress = Math.min(elapsed / duration, 1);
-      // Ease out cubic
       const eased = 1 - Math.pow(1 - progress, 3);
       setAnimatedScore(Math.round(score * eased));
       if (progress < 1) frame = requestAnimationFrame(animate);
@@ -80,6 +83,9 @@ export default function ScoreGauge({ score, label, vehicle, photoUrl }) {
               src={photoUrl}
               alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
               className="w-16 h-12 rounded-lg object-cover border border-border/50 flex-shrink-0"
+              loading="lazy"
+              width="64"
+              height="48"
               onError={(e) => { e.target.style.display = 'none'; }}
             />
           )}
@@ -97,6 +103,7 @@ export default function ScoreGauge({ score, label, vehicle, photoUrl }) {
           src={photoUrl}
           alt={`${vehicle?.year} ${vehicle?.make} ${vehicle?.model}`}
           className="mt-4 rounded-lg w-full max-h-48 object-cover"
+          loading="lazy"
           onError={(e) => { e.target.style.display = 'none'; }}
         />
       )}

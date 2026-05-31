@@ -124,8 +124,8 @@ export default function ResultsView({ dealData, result, onEditDeal, onNewDeal, o
   };
 
   return (
-    <div className="stagger space-y-4 pb-8">
-      <div ref={reportRef} className="space-y-4">
+    <div className="space-y-4 pb-8">
+      <div ref={reportRef} className="stagger space-y-4">
       {/* Panel 1: Score */}
       <ScoreGauge
         score={result.score}
@@ -311,7 +311,7 @@ export default function ResultsView({ dealData, result, onEditDeal, onNewDeal, o
 
       {/* PDF Export Overlay — shown during generation, success, or error */}
       {exportStatus && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-bg/80 backdrop-blur-sm px-4 animate-fade-up">
+        <div className="fixed inset-0 flex items-center justify-center bg-bg/80 backdrop-blur-sm px-4 animate-fade-up" style={{ zIndex: 'var(--z-modal)' }}>
           <div className="max-w-sm w-full bg-surface border border-border rounded-2xl p-6 text-center shadow-2xl">
             {/* Icon based on status */}
             {isExporting && (
@@ -344,7 +344,7 @@ export default function ResultsView({ dealData, result, onEditDeal, onNewDeal, o
             <p className="text-text2 text-sm leading-relaxed">{exportMessage}</p>
 
             {isExporting && (
-              <p className="text-text2/60 text-xs mt-4">
+              <p className="text-text2 text-xs mt-4">
                 The PDF will download automatically when ready. Please don't close this tab.
               </p>
             )}

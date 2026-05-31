@@ -713,7 +713,7 @@ export default function FormView({ initialData, onAnalysisComplete }) {
       <button
         onClick={handleSubmit}
         disabled={analyzing}
-        className="w-full py-4 bg-accent hover:bg-accent-hover disabled:opacity-50 text-white font-semibold rounded-xl text-lg transition-colors mb-4"
+        className="btn-primary w-full py-4 bg-accent hover:bg-accent-hover disabled:opacity-50 text-white font-semibold rounded-xl text-lg mb-4"
       >
         {analyzing ? (
           <span className="flex items-center justify-center gap-2">
@@ -749,6 +749,7 @@ function Section({ title, expanded, onToggle, children, badge }) {
       <button
         onClick={onToggle}
         className="w-full flex items-center justify-between p-4 text-left"
+        aria-expanded={expanded}
       >
         <span className="font-semibold text-text flex items-center gap-2">
           {title}
@@ -757,13 +758,18 @@ function Section({ title, expanded, onToggle, children, badge }) {
           )}
         </span>
         <svg
-          className={`w-5 h-5 text-text2 transition-transform ${expanded ? 'rotate-180' : ''}`}
+          className={`w-5 h-5 text-text2 transition-transform duration-[280ms]`}
+          style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transitionTimingFunction: 'var(--ease-out-quint)' }}
           fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
-      {expanded && <div className="px-4 pb-4">{children}</div>}
+      <div className="accordion-body" data-open={String(expanded)}>
+        <div className="accordion-inner">
+          <div className="px-4 pb-4">{children}</div>
+        </div>
+      </div>
     </div>
   );
 }

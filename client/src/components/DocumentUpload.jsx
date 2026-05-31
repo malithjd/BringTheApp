@@ -229,21 +229,10 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
                   className="w-full h-full object-cover"
                 />
               )}
-              {/* Remove button */}
+              {/* Remove button — always visible; sized for touch */}
               <button
                 onClick={() => removeItem(item.id)}
-                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red"
-                aria-label={`Remove ${item.name}`}
-                style={{ opacity: undefined }}
-                onPointerEnter={(e) => (e.currentTarget.style.opacity = 1)}
-                onPointerLeave={(e) => (e.currentTarget.style.opacity = '')}
-              >
-                &times;
-              </button>
-              {/* Always visible remove button on touch devices via CSS fallback */}
-              <button
-                onClick={() => removeItem(item.id)}
-                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-white text-xs items-center justify-center flex sm:hidden hover:bg-red"
+                className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/70 text-white text-xs flex items-center justify-center hover:bg-red transition-colors"
                 aria-label={`Remove ${item.name}`}
               >
                 &times;
@@ -260,7 +249,7 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
         <button
           onClick={handleScan}
           disabled={!allReady}
-          className="w-full py-3.5 px-4 bg-accent hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 text-lg"
+          className="btn-primary w-full py-3.5 px-4 bg-accent hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl flex items-center justify-center gap-2 text-lg"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 3.75H6A2.25 2.25 0 003.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0120.25 6v1.5M20.25 16.5V18A2.25 2.25 0 0118 20.25h-1.5M3.75 16.5V18A2.25 2.25 0 006 20.25h1.5" />
@@ -332,8 +321,12 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
       <div
         onDrop={handleDrop}
         onDragOver={handleDragOver}
-        className="relative border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-accent transition-colors cursor-pointer"
+        className="relative border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-accent transition-colors cursor-pointer focus-visible:outline-none focus-visible:border-accent"
         onClick={() => fileInputRef.current?.click()}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click(); } }}
+        role="button"
+        tabIndex="0"
+        aria-label="Upload purchase agreement — click or drag and drop files here"
       >
         <div className="py-4">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-surface2 flex items-center justify-center">
@@ -368,7 +361,7 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
         {/* Camera button */}
         <button
           onClick={() => cameraInputRef.current?.click()}
-          className="py-3 px-4 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+          className="btn-primary py-3 px-4 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl flex items-center justify-center gap-2"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
@@ -469,6 +462,11 @@ function ScanningProgress({ pageCount }) {
   const [stepIdx, setStepIdx] = useState(0);
 
   useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setProgress(99);
+      setStepIdx(SCAN_STEPS.length - 1);
+      return;
+    }
     const interval = setInterval(() => {
       setProgress((prev) => {
         const currentStep = SCAN_STEPS[stepIdx];

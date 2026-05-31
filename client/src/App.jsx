@@ -126,24 +126,28 @@ function AppInner() {
   const isAccount = view === 'account';
 
   return (
-    <div className="min-h-dvh bg-bg grain">
+    <div className="min-h-dvh bg-ink grain">
       {/* Header */}
-      <header className="border-b border-border px-4 py-3 sticky top-0 bg-bg/95 backdrop-blur-sm z-50">
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
+      <header
+        className="border-b border-ink-border px-6 sticky top-0 bg-ink/95 backdrop-blur-sm"
+        style={{ zIndex: 'var(--z-sticky)', height: '64px', display: 'flex', alignItems: 'center' }}
+      >
+        <div className="max-w-[1280px] mx-auto w-full flex items-center justify-between">
+          {/* Logo */}
           <button
             onClick={handleGoHome}
-            className="text-lg font-semibold text-text tracking-tight hover:text-accent transition-colors cursor-pointer"
+            className="font-display text-xl text-warm-white hover:text-yellow transition-colors cursor-pointer tracking-tight"
             aria-label="Go to home page"
           >
-            BringTheApp
+            BringTheApp<span className="text-yellow">.</span>
           </button>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-3 sm:gap-4">
             {/* Saved reports */}
             {user && (
               <button
                 onClick={() => setShowSavedReports(true)}
-                className="flex items-center gap-1.5 text-sm text-text2 hover:text-text transition-colors"
+                className="flex items-center gap-1.5 text-sm text-steel hover:text-warm-white transition-colors"
                 title="Saved reports"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -151,27 +155,27 @@ function AppInner() {
                 </svg>
                 <span className="hidden sm:inline">Reports</span>
                 {savedCount > 0 && (
-                  <span className="w-4 h-4 rounded-full bg-accent text-white text-[10px] font-bold flex items-center justify-center">
+                  <span className="w-4 h-4 rounded-full bg-yellow text-ink text-[10px] font-bold flex items-center justify-center">
                     {savedCount}
                   </span>
                 )}
               </button>
             )}
 
-            {/* Nav actions */}
+            {/* App nav actions */}
             {!isLanding && !isCompare && !isAccount && (
               <>
                 {isResults && (
                   <button
                     onClick={handleEditDeal}
-                    className="text-sm text-text2 hover:text-text transition-colors hidden sm:block"
+                    className="text-sm text-steel hover:text-warm-white transition-colors hidden sm:block"
                   >
                     Edit Deal
                   </button>
                 )}
                 <button
                   onClick={handleStartOver}
-                  className="text-sm text-accent hover:text-accent-hover font-medium transition-colors flex items-center gap-1"
+                  className="text-sm text-steel hover:text-warm-white transition-colors flex items-center gap-1"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
@@ -183,25 +187,35 @@ function AppInner() {
 
             {/* Auth controls */}
             {user === null && (
-              <button
-                onClick={() => setShowAuth(true)}
-                className="px-3 py-1.5 text-sm font-medium text-text2 hover:text-text border border-border hover:border-accent/50 rounded-lg transition-colors"
-              >
-                Sign in
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowAuth(true)}
+                  className="text-sm text-steel hover:text-warm-white transition-colors underline underline-offset-4"
+                >
+                  Sign in
+                </button>
+                {isLanding && (
+                  <button
+                    onClick={handleGetStarted}
+                    className="btn-primary bg-yellow hover:bg-yellow-hover text-ink text-sm font-semibold px-4 py-2 rounded-lg"
+                  >
+                    Check my deal
+                  </button>
+                )}
+              </div>
             )}
             {user && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <button
                   onClick={() => goTo('account')}
                   title={`Account · ${user.email}`}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${isAccount ? 'bg-accent text-white' : 'bg-surface2 border border-border text-text2 hover:border-accent/50 hover:text-text'}`}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${isAccount ? 'bg-yellow text-ink' : 'bg-card-dark border border-ink-border text-steel hover:text-warm-white hover:border-yellow/40'}`}
                 >
                   {user.email?.[0]?.toUpperCase() ?? '?'}
                 </button>
                 <button
                   onClick={signOut}
-                  className="text-sm text-text2 hover:text-text transition-colors"
+                  className="text-sm text-steel hover:text-warm-white transition-colors"
                   title="Sign out"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -215,7 +229,8 @@ function AppInner() {
       </header>
 
       {/* Main */}
-      <main className="max-w-3xl mx-auto px-4 py-6">
+      <main className={view === 'landing' ? '' : 'max-w-3xl mx-auto px-4 py-6'}>
+        <div key={view} className="animate-fade-in">
         {view === 'landing' ? (
           <LandingPage onGetStarted={handleGetStarted} />
         ) : view === 'form' ? (
@@ -243,11 +258,12 @@ function AppInner() {
             savedCount={savedCount}
           />
         )}
+        </div>
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-border mt-8 py-5 px-4">
-        <div className="max-w-3xl mx-auto text-center text-xs text-text2">
+      <footer className="border-t border-ink-border mt-8 py-5 px-4">
+        <div className="max-w-3xl mx-auto text-center text-xs text-steel">
           Built by{' '}
           <a
             href="https://malithjd.com"

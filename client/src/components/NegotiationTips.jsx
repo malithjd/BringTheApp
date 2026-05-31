@@ -1,5 +1,20 @@
+import { useState } from 'react';
+
 export default function NegotiationTips({ scripts }) {
+  const [copyState, setCopyState] = useState({}); // { [index]: 'copied' | 'error' }
+
   if (!scripts || scripts.length === 0) return null;
+
+  const handleCopy = async (script, i) => {
+    try {
+      await navigator.clipboard.writeText(script.replace(/^"|"$/g, ''));
+      setCopyState(prev => ({ ...prev, [i]: 'copied' }));
+      setTimeout(() => setCopyState(prev => { const next = { ...prev }; delete next[i]; return next; }), 2000);
+    } catch {
+      setCopyState(prev => ({ ...prev, [i]: 'error' }));
+      setTimeout(() => setCopyState(prev => { const next = { ...prev }; delete next[i]; return next; }), 2500);
+    }
+  };
 
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden animate-fade-up">
@@ -13,14 +28,18 @@ export default function NegotiationTips({ scripts }) {
           <div key={i} className="bg-surface2 rounded-lg p-4">
             <p className="text-xs font-semibold text-amber uppercase tracking-wide mb-2">{s.issue}</p>
             <p className="text-sm text-text leading-relaxed italic">{s.script}</p>
-            <button
-              onClick={() => {
-                navigator.clipboard?.writeText(s.script.replace(/^"|"$/g, ''));
-              }}
-              className="mt-2 text-xs text-accent hover:text-accent-hover font-medium"
-            >
-              Copy to clipboard
-            </button>
+            <div className="mt-2 flex items-center gap-2">
+              <button
+                onClick={() => handleCopy(s.script, i)}
+                className="text-xs text-accent hover:text-accent-hover font-medium transition-colors"
+                aria-label={`Copy script for ${s.issue}`}
+              >
+                {copyState[i] === 'copied' ? 'Copied!' : copyState[i] === 'error' ? 'Copy failed' : 'Copy to clipboard'}
+              </button>
+              {copyState[i] === 'error' && (
+                <span className="text-xs text-text2">Select and copy manually.</span>
+              )}
+            </div>
           </div>
         ))}
       </div>

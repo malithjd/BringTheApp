@@ -62,7 +62,7 @@ export default function SearchableSelect({ label, options, value, onChange, plac
         onChange={(e) => setSearch(e.target.value)}
       />
       {open && filtered.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-surface border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+        <div className="absolute w-full mt-1 bg-surface border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto" style={{ zIndex: 'var(--z-dropdown)' }}>
           {filtered.slice(0, 50).map((opt, i) => {
             const name = typeof opt === 'string' ? opt : opt.name;
             return (
