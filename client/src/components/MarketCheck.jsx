@@ -169,7 +169,7 @@ export default function MarketCheck({ vehicle, market, price }) {
                 onClick={() => setSortBy('distance')}
                 className={`px-2.5 py-1 text-[11px] rounded-lg border transition-colors ${
                   sortBy === 'distance'
-                    ? 'bg-accent text-white border-accent'
+                    ? 'bg-accent text-ink border-accent'
                     : 'bg-surface2 text-text2 border-border hover:border-accent'
                 }`}
               >
@@ -180,7 +180,7 @@ export default function MarketCheck({ vehicle, market, price }) {
               onClick={() => setSortBy('price-asc')}
               className={`px-2.5 py-1 text-[11px] rounded-lg border transition-colors ${
                 sortBy === 'price-asc'
-                  ? 'bg-accent text-white border-accent'
+                  ? 'bg-accent text-ink border-accent'
                   : 'bg-surface2 text-text2 border-border hover:border-accent'
               }`}
             >
@@ -190,7 +190,7 @@ export default function MarketCheck({ vehicle, market, price }) {
               onClick={() => setSortBy('price-desc')}
               className={`px-2.5 py-1 text-[11px] rounded-lg border transition-colors ${
                 sortBy === 'price-desc'
-                  ? 'bg-accent text-white border-accent'
+                  ? 'bg-accent text-ink border-accent'
                   : 'bg-surface2 text-text2 border-border hover:border-accent'
               }`}
             >

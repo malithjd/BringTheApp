@@ -276,6 +276,20 @@ input[type="number"] {
   }
 }
 
+/* ── Safe area insets (iOS notch / home indicator) ──────────────────── */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+  padding-bottom: max(0px, env(safe-area-inset-bottom));
+}
+.header-safe {
+  padding-top: env(safe-area-inset-top);
+}
+.sticky-cta-safe {
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+
 /* ── Stagger ────────────────────────────────────────────────────────── */
 .stagger > * { animation: fadeUp 0.5s var(--ease-out-expo) both; }
 .stagger > *:nth-child(1) { animation-delay: 0ms; }

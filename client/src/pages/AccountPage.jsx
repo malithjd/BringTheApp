@@ -119,7 +119,7 @@ export default function AccountPage({ onGoHome }) {
               <button
                 type="submit"
                 disabled={resetStatus === 'loading'}
-                className="px-4 py-2 bg-accent text-white text-sm font-semibold rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-60"
+                className="px-4 py-2 bg-accent text-ink text-sm font-semibold rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-60"
               >
                 {resetStatus === 'loading' ? 'Saving...' : 'Update password'}
               </button>

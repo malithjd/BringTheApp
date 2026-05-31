@@ -129,33 +129,34 @@ function AppInner() {
     <div className="min-h-dvh bg-ink grain">
       {/* Header */}
       <header
-        className="border-b border-ink-border px-6 sticky top-0 bg-ink/95 backdrop-blur-sm"
-        style={{ zIndex: 'var(--z-sticky)', height: '64px', display: 'flex', alignItems: 'center' }}
+        className="header-safe border-b border-ink-border px-4 sm:px-6 sticky top-0 bg-ink/95 backdrop-blur-sm flex items-end"
+        style={{ zIndex: 'var(--z-sticky)', minHeight: '64px' }}
       >
-        <div className="max-w-[1280px] mx-auto w-full flex items-center justify-between">
+        <div className="max-w-[1280px] mx-auto w-full flex items-center justify-between h-16">
           {/* Logo */}
           <button
             onClick={handleGoHome}
-            className="font-display text-xl text-warm-white hover:text-yellow transition-colors cursor-pointer tracking-tight"
+            className="font-display text-xl text-warm-white hover:text-yellow transition-colors cursor-pointer tracking-tight shrink-0"
             aria-label="Go to home page"
           >
             BringTheApp<span className="text-yellow">.</span>
           </button>
 
-          <div className="flex items-center gap-3 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             {/* Saved reports */}
             {user && (
               <button
                 onClick={() => setShowSavedReports(true)}
                 className="flex items-center gap-1.5 text-sm text-steel hover:text-warm-white transition-colors"
+                aria-label="Saved reports"
                 title="Saved reports"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" />
                 </svg>
                 <span className="hidden sm:inline">Reports</span>
                 {savedCount > 0 && (
-                  <span className="w-4 h-4 rounded-full bg-yellow text-ink text-[10px] font-bold flex items-center justify-center">
+                  <span className="w-4 h-4 rounded-full bg-yellow text-ink text-[10px] font-bold flex items-center justify-center shrink-0">
                     {savedCount}
                   </span>
                 )}
@@ -175,9 +176,10 @@ function AppInner() {
                 )}
                 <button
                   onClick={handleStartOver}
+                  aria-label="Start over"
                   className="text-sm text-steel hover:text-warm-white transition-colors flex items-center gap-1"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
                   </svg>
                   <span className="hidden sm:inline">Start Over</span>
@@ -187,17 +189,17 @@ function AppInner() {
 
             {/* Auth controls */}
             {user === null && (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
                 <button
                   onClick={() => setShowAuth(true)}
-                  className="text-sm text-steel hover:text-warm-white transition-colors underline underline-offset-4"
+                  className="text-sm text-steel hover:text-warm-white transition-colors underline underline-offset-4 shrink-0"
                 >
                   Sign in
                 </button>
                 {isLanding && (
                   <button
                     onClick={handleGetStarted}
-                    className="btn-primary bg-yellow hover:bg-yellow-hover text-ink text-sm font-semibold px-4 py-2 rounded-lg"
+                    className="btn-primary hidden min-[480px]:inline-flex items-center bg-yellow hover:bg-yellow-hover text-ink text-sm font-semibold px-4 py-2 rounded-lg shrink-0"
                   >
                     Check my deal
                   </button>
@@ -205,16 +207,18 @@ function AppInner() {
               </div>
             )}
             {user && (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
                 <button
                   onClick={() => goTo('account')}
+                  aria-label={`Account: ${user.email}`}
                   title={`Account · ${user.email}`}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${isAccount ? 'bg-yellow text-ink' : 'bg-card-dark border border-ink-border text-steel hover:text-warm-white hover:border-yellow/40'}`}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors shrink-0 ${isAccount ? 'bg-yellow text-ink' : 'bg-card-dark border border-ink-border text-steel hover:text-warm-white hover:border-yellow/40'}`}
                 >
                   {user.email?.[0]?.toUpperCase() ?? '?'}
                 </button>
                 <button
                   onClick={signOut}
+                  aria-label="Sign out"
                   className="text-sm text-steel hover:text-warm-white transition-colors"
                   title="Sign out"
                 >

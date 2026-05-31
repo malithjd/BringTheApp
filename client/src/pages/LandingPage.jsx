@@ -294,10 +294,10 @@ export default function LandingPage({ onGetStarted }) {
               <p className="text-steel text-sm mb-3">No signup · No card · 3 free checks</p>
               <button
                 onClick={onGetStarted}
-                className="btn-primary bg-yellow hover:bg-yellow-hover text-ink font-semibold rounded-lg px-7 py-3.5 text-sm flex items-center gap-2"
+                className="btn-primary bg-yellow hover:bg-yellow-hover text-ink font-semibold rounded-lg px-7 py-3.5 text-sm inline-flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-start"
               >
                 Check my deal — it's free
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                 </svg>
               </button>
@@ -668,10 +668,10 @@ export default function LandingPage({ onGetStarted }) {
           </p>
           <button
             onClick={onGetStarted}
-            className="btn-primary bg-yellow hover:bg-yellow-hover text-ink font-semibold rounded-lg px-8 py-4 text-base inline-flex items-center gap-2.5"
+            className="btn-primary bg-yellow hover:bg-yellow-hover text-ink font-semibold rounded-lg px-8 py-4 text-base inline-flex items-center gap-2.5 w-full sm:w-auto justify-center"
           >
             Check my deal — it's free
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
             </svg>
           </button>
@@ -684,7 +684,7 @@ export default function LandingPage({ onGetStarted }) {
       {/* ═══ STICKY MOBILE CTA ═════════════════════════════════════════ */}
       {showSticky && (
         <div
-          className="fixed bottom-0 left-0 right-0 sm:hidden flex items-center justify-between px-4 py-3 bg-yellow"
+          className="sticky-cta-safe fixed bottom-0 left-0 right-0 sm:hidden flex items-center justify-between px-4 pt-3 bg-yellow"
           style={{ zIndex: 'var(--z-sticky)' }}
           role="complementary"
           aria-label="Quick access CTA"

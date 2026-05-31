@@ -191,7 +191,7 @@ export default function AuthModal({ onClose }) {
             <button
               type="submit"
               disabled={status === 'loading'}
-              className="btn-primary w-full py-2.5 bg-accent text-white font-semibold rounded-lg text-sm hover:bg-accent-hover disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="btn-primary w-full py-2.5 bg-accent text-ink font-semibold rounded-lg text-sm hover:bg-accent-hover disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {status === 'loading' ? (
                 <><Spinner />{mode === 'forgot' ? 'Sending...' : mode === 'signin' ? 'Signing in...' : 'Creating account...'}</>

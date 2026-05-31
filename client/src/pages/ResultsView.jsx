@@ -213,7 +213,7 @@ export default function ResultsView({ dealData, result, onEditDeal, onNewDeal, o
           />
           <button
             onClick={handleSaveConfirm}
-            className="px-4 py-2 bg-accent text-white text-sm font-semibold rounded-lg hover:bg-accent-hover transition-colors"
+            className="px-4 py-2 bg-accent text-ink text-sm font-semibold rounded-lg hover:bg-accent-hover transition-colors"
           >
             Save
           </button>
@@ -303,7 +303,7 @@ export default function ResultsView({ dealData, result, onEditDeal, onNewDeal, o
         <button
           onClick={onNewDeal}
           disabled={isExporting}
-          className="py-3 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition-colors disabled:opacity-60 text-sm"
+          className="py-3 bg-accent hover:bg-accent-hover text-ink font-semibold rounded-xl transition-colors disabled:opacity-60 text-sm"
         >
           New Deal
         </button>

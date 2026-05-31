@@ -272,8 +272,8 @@ export default function FormView({ initialData, onAnalysisComplete }) {
     return (
       <div className="animate-fade-up">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-text mb-2">Analyze Your Car Deal</h1>
-          <p className="text-text2">Upload your purchase agreement and we'll tell you if it's a good deal</p>
+          <h1 className="font-display text-3xl text-warm-white mb-2">Analyze Your Car Deal</h1>
+          <p className="text-muted-text">Upload your purchase agreement and we'll tell you if it's a good deal</p>
         </div>
         <DocumentUpload
           onFieldsExtracted={handleOcrFields}
@@ -287,7 +287,7 @@ export default function FormView({ initialData, onAnalysisComplete }) {
   return (
     <div className="pb-24 animate-fade-up">
       <div className="text-center mb-6">
-        <h1 className="text-2xl font-bold text-text mb-1">Deal Details</h1>
+        <h1 className="font-display text-2xl text-warm-white mb-1">Deal Details</h1>
         <p className="text-text2 text-sm">
           {ocrFilled ? 'Review extracted details — correct any errors' : 'Enter your deal numbers'}
         </p>
@@ -313,7 +313,7 @@ export default function FormView({ initialData, onAnalysisComplete }) {
               onClick={() => set('condition', c)}
               className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
                 form.condition === c
-                  ? 'bg-accent text-white'
+                  ? 'bg-accent text-ink'
                   : 'bg-surface2 text-text2 hover:text-text'
               }`}
             >
@@ -556,7 +556,7 @@ export default function FormView({ initialData, onAnalysisComplete }) {
                   setCustomAddonName(null);
                 }
               }}
-              className="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-lg transition-colors"
+              className="px-4 py-2 bg-accent hover:bg-accent-hover text-ink text-sm font-medium rounded-lg transition-colors"
             >
               Add
             </button>
@@ -585,7 +585,7 @@ export default function FormView({ initialData, onAnalysisComplete }) {
             onClick={() => set('hasFinancing', true)}
             className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
               form.hasFinancing
-                ? 'bg-accent text-white'
+                ? 'bg-accent text-ink'
                 : 'bg-surface2 text-text2 hover:text-text'
             }`}
           >
@@ -613,7 +613,7 @@ export default function FormView({ initialData, onAnalysisComplete }) {
                   onClick={() => handleCreditTier(tier.value)}
                   className={`px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
                     form.creditTier === tier.value
-                      ? 'bg-accent text-white'
+                      ? 'bg-accent text-ink'
                       : 'bg-surface2 text-text2 hover:text-text'
                   }`}
                 >
@@ -656,7 +656,7 @@ export default function FormView({ initialData, onAnalysisComplete }) {
                       onClick={() => set('term', t)}
                       className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${
                         form.term === t
-                          ? 'bg-accent text-white border-accent'
+                          ? 'bg-accent text-ink border-accent'
                           : 'bg-surface2 text-text2 border-border hover:border-accent'
                       }`}
                     >
@@ -713,11 +713,11 @@ export default function FormView({ initialData, onAnalysisComplete }) {
       <button
         onClick={handleSubmit}
         disabled={analyzing}
-        className="btn-primary w-full py-4 bg-accent hover:bg-accent-hover disabled:opacity-50 text-white font-semibold rounded-xl text-lg mb-4"
+        className="btn-primary w-full py-4 bg-accent hover:bg-accent-hover disabled:opacity-50 text-ink font-semibold rounded-xl text-lg mb-4"
       >
         {analyzing ? (
           <span className="flex items-center justify-center gap-2">
-            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            <div className="w-5 h-5 border-2 border-ink border-t-transparent rounded-full animate-spin" />
             Analyzing Deal...
           </span>
         ) : (

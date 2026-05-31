@@ -116,7 +116,7 @@ export default function SavedReports({ onLoad, onCompare, onClose }) {
             {selected.length === 2 && (
               <button
                 onClick={handleCompare}
-                className="px-3 py-1.5 bg-accent text-white text-xs font-semibold rounded-lg hover:bg-accent-hover transition-colors flex items-center gap-1.5"
+                className="px-3 py-1.5 bg-accent text-ink text-xs font-semibold rounded-lg hover:bg-accent-hover transition-colors flex items-center gap-1.5"
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 0v10" />

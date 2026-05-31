@@ -72,7 +72,7 @@ function Column({ report }) {
   const marketRef = r?.market?.reference ?? r?.market?.calculated ?? {};
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-1.5 sm:gap-3">
       {/* Gauge + label */}
       <div className="bg-bg border border-border rounded-xl p-4 text-center">
         <MiniGauge score={r.score} />
@@ -236,13 +236,13 @@ export default function CompareView({ reportA, reportB, onBack }) {
       </div>
 
       {/* Column headers */}
-      <div className="grid grid-cols-2 gap-3 mb-1.5 px-0.5">
+      <div className="grid grid-cols-2 gap-1.5 sm:gap-3 mb-1.5 px-0.5">
         <p className="text-xs font-semibold text-text truncate">{left?.name || 'Report A'}</p>
         <p className="text-xs font-semibold text-text truncate">{right?.name || 'Report B'}</p>
       </div>
 
       {/* Two-column layout */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-1.5 sm:gap-3">
         <Column report={left} />
         <Column report={right} />
       </div>
