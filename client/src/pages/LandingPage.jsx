@@ -1,4 +1,33 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+
+// ── Animated dollar counter ───────────────────────────────────────────
+function AnimatedDollar({ target = 4200, duration = 1700 }) {
+  const [value, setValue] = useState(0);
+  const startedRef = useRef(false);
+
+  useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setValue(target);
+      return;
+    }
+    const ease = t => 1 - Math.pow(1 - t, 4);
+    const start = performance.now();
+    const tick = (now) => {
+      const p = Math.min((now - start) / duration, 1);
+      setValue(Math.round(target * ease(p)));
+      if (p < 1) requestAnimationFrame(tick);
+    };
+    setTimeout(() => requestAnimationFrame(tick), 150);
+  }, [target, duration]);
+
+  return (
+    <span className="hero-fee-amount tabular-nums">
+      ${value.toLocaleString('en-US')}
+    </span>
+  );
+}
 
 // ── Mock report panels ────────────────────────────────────────────────
 
@@ -280,9 +309,16 @@ export default function LandingPage({ onGetStarted }) {
               <span className="text-warm-white text-xs font-medium tracking-wide">Free car deal analyzer</span>
             </div>
 
-            <h1 className="font-display text-[clamp(42px,6vw,68px)] leading-[1.0] tracking-tight text-warm-white mb-6">
-              We read the fine print.<br />
-              <em>Dealers hate that.</em>
+            <h1 className="font-display leading-[1.05] tracking-tight text-warm-white mb-6" style={{ textWrap: 'balance' }}>
+              <span className="block text-steel text-[clamp(17px,2.4vw,24px)] font-normal tracking-normal mb-3 font-sans">
+                Did you know buyers spend
+              </span>
+              <span className="block text-[clamp(56px,8vw,96px)] leading-[1.0] text-yellow hero-fee-line">
+                <AnimatedDollar />
+              </span>
+              <span className="block text-[clamp(24px,3.2vw,42px)] leading-[1.15] mt-1">
+                on average in hidden fees?
+              </span>
             </h1>
 
             <p className="text-steel text-lg leading-relaxed max-w-xl mb-10">
