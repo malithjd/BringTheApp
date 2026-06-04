@@ -272,7 +272,9 @@ Info:
   pill:         #DBEAFE
 ```
 
-**The State-Reads-Color Rule.**
+
+
+**The State-Reads-Color Rule**
 Semantic colors exist only for deal-state feedback: flag cards, score ring,
 status badges, flag severity labels. A green headline reads as a deal signal.
 A red button reads as a danger action. Neither is acceptable.
