@@ -272,7 +272,7 @@ export default function LandingPage({ onGetStarted }) {
     <div className="bg-ink">
 
       {/* ═══ HERO ══════════════════════════════════════════════════════ */}
-      <section className="px-6 pt-20 pb-24 md:pt-28 md:pb-32">
+      <section className="hero-section px-6 pt-20 pb-24 md:pt-28 md:pb-32">
         <div className="max-w-[1280px] mx-auto">
           <div className="max-w-2xl">
 
@@ -287,18 +287,19 @@ export default function LandingPage({ onGetStarted }) {
               className="font-display text-[clamp(38px,5.5vw,72px)] leading-[1.05] tracking-tight text-warm-white mb-6"
               style={{ textWrap: 'balance' }}
             >
-              87% of car buyers pay $670 in hidden fees.{' '}
+              <span className="hero-num">87%</span> of car buyers pay{' '}
+              <span className="hero-num">$670</span> in hidden fees.{' '}
               <em>You don't have to.</em>
             </h1>
 
-            <p className="text-warm-white/70 text-lg leading-relaxed max-w-xl mb-10" style={{ textWrap: 'pretty' }}>
+            <p className="text-muted-text text-lg leading-relaxed max-w-xl mb-10" style={{ textWrap: 'pretty' }}>
               Upload any paperwork the dealer gave you. BringTheApp reads every number,
               flags illegal charges and APR markups, and tells you exactly what to say
               before you sign.
             </p>
 
             <div className="mb-10">
-              <p className="text-warm-white/40 text-sm mb-3 font-sans">No signup · No card · 3 free checks</p>
+              <p className="text-steel text-sm mb-3 font-sans">No signup · No card · 3 free checks</p>
               <button
                 onClick={onGetStarted}
                 className="hero-cta-btn btn-primary bg-yellow text-ink font-semibold rounded-lg px-7 py-3.5 text-sm inline-flex items-center gap-2.5 w-full sm:w-auto justify-center sm:justify-start"
@@ -313,7 +314,7 @@ export default function LandingPage({ onGetStarted }) {
 
             {/* Stats — supporting evidence, warm-white not yellow */}
             <div
-              className="hero-stats-row flex flex-wrap gap-x-10 gap-y-5 border-t border-ink-border pt-8"
+              className="hero-stats-row flex flex-wrap gap-x-10 gap-y-5 border-t border-yellow/15 pt-8"
               ref={(el) => {
                 if (!el || el._cu) return; el._cu = true;
                 if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -351,10 +352,10 @@ export default function LandingPage({ onGetStarted }) {
               ].map(({ init, label }, i) => (
                 <div key={i} className="hero-stat-item">
                   <p className="hero-stat-num text-warm-white text-2xl font-semibold tabular-nums font-display">{init}</p>
-                  <p className="text-warm-white/40 text-xs mt-1 max-w-[160px] leading-relaxed">{label}</p>
+                  <p className="text-steel text-xs mt-1 max-w-[160px] leading-relaxed">{label}</p>
                 </div>
               ))}
-              <p className="w-full text-warm-white/25 text-[11px] mt-1">*Based on analysis of 10,000+ purchase agreements.</p>
+              <p className="w-full text-steel/60 text-[11px] mt-1">*Based on analysis of 10,000+ purchase agreements.</p>
             </div>
 
           </div>
