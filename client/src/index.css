@@ -200,32 +200,55 @@ input[type="number"] {
 .hero-stat-num {
   animation: statEntrance 0.45s var(--ease-out-expo) both;
 }
-/* Stagger: 0 / 350ms / 700ms (baked from accepted "spacious" param) */
-.hero-stats-row > div:nth-child(1) .hero-stat-num { animation-delay: 0ms; }
-.hero-stats-row > div:nth-child(2) .hero-stat-num { animation-delay: 350ms; }
-.hero-stats-row > div:nth-child(3) .hero-stat-num { animation-delay: 700ms; }
+/* Stagger tightened — 0 / 200ms / 400ms */
+.hero-stats-row .hero-stat-item:nth-child(1) .hero-stat-num { animation-delay: 0ms; }
+.hero-stats-row .hero-stat-item:nth-child(2) .hero-stat-num { animation-delay: 200ms; }
+.hero-stats-row .hero-stat-item:nth-child(3) .hero-stat-num { animation-delay: 400ms; }
 @media (prefers-reduced-motion: reduce) {
   .hero-stat-num { animation: none !important; opacity: 1 !important; transform: none !important; }
 }
 
-/* ── Hero animated fee amount ──────────────────────────────────────── */
-.hero-fee-amount {
-  display: inline-block;
-  color: var(--color-yellow);
-  letter-spacing: -0.03em;
-  text-shadow: 0 0 32px rgba(245, 196, 0, 0.30), 0 0 64px rgba(245, 196, 0, 0.12);
+/* ── Hero badge — slow confident heartbeat ─────────────────────────── */
+.hero-badge-dot {
+  animation: badgeHeartbeat 2.8s var(--ease-out-quint) infinite;
 }
-.hero-fee-line {
-  animation: feeSlideIn 0.5s var(--ease-out-expo) both;
-  animation-delay: 0.1s;
-}
-@keyframes feeSlideIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
+@keyframes badgeHeartbeat {
+  0%, 100% { opacity: 1;   transform: scale(1);    }
+  50%       { opacity: 0.3; transform: scale(0.75); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .hero-fee-line { animation: none !important; opacity: 1 !important; transform: none !important; }
-  .hero-fee-amount { text-shadow: none; }
+  .hero-badge-dot { animation: none; }
+}
+
+/* ── Hero CTA button — tactile lift + yellow glow ──────────────────── */
+.hero-cta-btn {
+  transition: transform 0.18s var(--ease-out-quart),
+              box-shadow 0.18s var(--ease-out-quart),
+              background-color 0.1s ease;
+  box-shadow: 0 0 0 rgba(245, 196, 0, 0);
+}
+.hero-cta-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(245, 196, 0, 0.30), 0 2px 8px rgba(245, 196, 0, 0.15);
+}
+.hero-cta-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(245, 196, 0, 0.12);
+  transition-duration: 0.06s;
+}
+.hero-cta-btn .hero-cta-arrow {
+  transition: transform 0.18s var(--ease-out-quart);
+}
+.hero-cta-btn:hover .hero-cta-arrow {
+  transform: translateX(3px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-cta-btn, .hero-cta-btn:hover, .hero-cta-btn:active {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+  .hero-cta-btn .hero-cta-arrow,
+  .hero-cta-btn:hover .hero-cta-arrow { transform: none !important; }
 }
 
 /* ── Privacy bar (horizontal trust signal on dark bg) ──────────────── */
