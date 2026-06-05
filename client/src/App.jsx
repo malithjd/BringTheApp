@@ -199,7 +199,7 @@ function AppInner() {
                 {isLanding && (
                   <button
                     onClick={handleGetStarted}
-                    className="btn-primary hidden min-[480px]:inline-flex items-center bg-yellow hover:bg-yellow-hover text-ink text-sm font-semibold px-4 py-2 rounded-lg shrink-0"
+                    className="btn-primary hidden min-[480px]:inline-flex items-center bg-card-dark hover:bg-card-dark2 border border-ink-border text-warm-white text-sm font-semibold px-4 py-2 rounded-lg shrink-0"
                   >
                     Check my deal
                   </button>
@@ -267,7 +267,7 @@ function AppInner() {
 
       {/* Footer */}
       <footer className="border-t border-ink-border mt-8 py-5 px-4">
-        <div className="max-w-3xl mx-auto text-center text-xs text-steel">
+        <div className="max-w-[1280px] mx-auto text-center text-xs text-steel">
           Built by{' '}
           <a
             href="https://malithjd.com"

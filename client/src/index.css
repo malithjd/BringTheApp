@@ -293,15 +293,31 @@ input[type="number"] {
 
 /* ── Primary button press feedback ─────────────────────────────────── */
 .btn-primary {
+  cursor: pointer;
   transition: background-color 100ms ease, transform 100ms var(--ease-out-quint);
 }
 .btn-primary:active:not(:disabled) {
   transform: scale(0.97);
 }
 
+/* ── Focus ring — keyboard navigation ──────────────────────────────── */
+button:focus-visible,
+a:focus-visible,
+[role="tab"]:focus-visible {
+  outline: 2px solid var(--color-yellow);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
 /* ── Utilities ──────────────────────────────────────────────────────── */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ── Scrollable tab row with right-side fade affordance ─────────────── */
+.tab-scroll-fade {
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 12px, black calc(100% - 40px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0%, black 12px, black calc(100% - 40px), transparent 100%);
+}
 
 /* ── Cookie consent — new brand theme ──────────────────────────────── */
 #cc-main {
