@@ -1,34 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 
-// ── Animated dollar counter ───────────────────────────────────────────
-function AnimatedDollar({ target = 4200, duration = 1700 }) {
-  const [value, setValue] = useState(0);
-  const startedRef = useRef(false);
-
-  useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setValue(target);
-      return;
-    }
-    const ease = t => 1 - Math.pow(1 - t, 4);
-    const start = performance.now();
-    const tick = (now) => {
-      const p = Math.min((now - start) / duration, 1);
-      setValue(Math.round(target * ease(p)));
-      if (p < 1) requestAnimationFrame(tick);
-    };
-    setTimeout(() => requestAnimationFrame(tick), 150);
-  }, [target, duration]);
-
-  return (
-    <span className="hero-fee-amount tabular-nums">
-      ${value.toLocaleString('en-US')}
-    </span>
-  );
-}
-
 // ── Mock report panels ────────────────────────────────────────────────
 
 function MockScorePanel() {
@@ -304,61 +275,69 @@ export default function LandingPage({ onGetStarted }) {
       <section className="px-6 pt-20 pb-24 md:pt-28 md:pb-32">
         <div className="max-w-[1280px] mx-auto">
           <div className="max-w-2xl">
+
+            {/* Badge — slow heartbeat, not anxious flash */}
             <div className="inline-flex items-center gap-2 border border-ink-border rounded-full px-3 py-1 mb-8">
-              <span className="w-1.5 h-1.5 rounded-full bg-yellow animate-pulse" style={{ animationIterationCount: 3 }} />
+              <span className="w-1.5 h-1.5 rounded-full bg-yellow hero-badge-dot" />
               <span className="text-warm-white text-xs font-medium tracking-wide">Free car deal analyzer</span>
             </div>
 
-            <h1 className="font-display leading-[1.05] tracking-tight text-warm-white mb-6" style={{ textWrap: 'balance' }}>
-              <span className="block text-steel text-[clamp(17px,2.4vw,24px)] font-normal tracking-normal mb-3 font-sans">
-                Did you know buyers spend
-              </span>
-              <span className="block text-[clamp(56px,8vw,96px)] leading-[1.0] text-yellow hero-fee-line">
-                <AnimatedDollar />
-              </span>
-              <span className="block text-[clamp(24px,3.2vw,42px)] leading-[1.15] mt-1">
-                on average in hidden fees?
-              </span>
+            {/* Headline — statement, not a quiz question */}
+            <h1
+              className="font-display text-[clamp(38px,5.5vw,72px)] leading-[1.05] tracking-tight text-warm-white mb-6"
+              style={{ textWrap: 'balance' }}
+            >
+              87% of car buyers pay $670 in hidden fees.{' '}
+              <em>You don't have to.</em>
             </h1>
 
-            <p className="text-steel text-lg leading-relaxed max-w-xl mb-10">
-              Upload any paperwork the dealer gave you. BringTheApp flags hidden fees,
-              illegal charges, and APR markups before you sign.
+            <p className="text-warm-white/70 text-lg leading-relaxed max-w-xl mb-10" style={{ textWrap: 'pretty' }}>
+              Upload any paperwork the dealer gave you. BringTheApp reads every number,
+              flags illegal charges and APR markups, and tells you exactly what to say
+              before you sign.
             </p>
 
-            <div className="mb-4">
-              <p className="text-steel text-sm mb-3">No signup · No card · 3 free checks</p>
+            <div className="mb-10">
+              <p className="text-warm-white/40 text-sm mb-3 font-sans">No signup · No card · 3 free checks</p>
               <button
                 onClick={onGetStarted}
-                className="btn-primary bg-yellow hover:bg-yellow-hover text-ink font-semibold rounded-lg px-7 py-3.5 text-sm inline-flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-start"
+                className="hero-cta-btn btn-primary bg-yellow text-ink font-semibold rounded-lg px-7 py-3.5 text-sm inline-flex items-center gap-2.5 w-full sm:w-auto justify-center sm:justify-start"
               >
                 Check my deal — it's free
-                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <svg className="hero-cta-arrow w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                 </svg>
               </button>
               <PrivacyBadge />
             </div>
 
+            {/* Stats — supporting evidence, warm-white not yellow */}
             <div
-              className="hero-stats-row flex flex-wrap gap-x-10 gap-y-4 border-t border-ink-border pt-8"
+              className="hero-stats-row flex flex-wrap gap-x-10 gap-y-5 border-t border-ink-border pt-8"
               ref={(el) => {
                 if (!el || el._cu) return; el._cu = true;
                 if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-                const dur = 2200;
-                const staggerMs = 350;
-                const stats = [{t:94,pre:'',suf:'%'},{t:4200,pre:'$',suf:''},{t:60,pre:'',suf:' sec'}];
-                const fmt = (n,pre,suf) => { const r = Math.round(n); return pre==='$'&&r>=1000 ? '$'+r.toLocaleString('en-US') : pre+r+suf; };
-                const ease = t => 1 - Math.pow(1-t, 6);
+                const dur = 1800;
+                const staggerMs = 200;
+                const stats = [
+                  { t: 87,  pre: '',  suf: '%'   },
+                  { t: 670, pre: '$', suf: ''     },
+                  { t: 60,  pre: '',  suf: ' sec' },
+                ];
+                const fmt = (n, pre, suf) => {
+                  const r = Math.round(n);
+                  return pre === '$' && r >= 1000 ? '$' + r.toLocaleString('en-US') : pre + r + suf;
+                };
+                const ease = t => 1 - Math.pow(1 - t, 4);
                 el.querySelectorAll('.hero-stat-num').forEach((node, i) => {
-                  const {t:target,pre,suf} = stats[i];
-                  node.textContent = fmt(0,pre,suf);
+                  const { t: target, pre, suf } = stats[i];
+                  node.textContent = fmt(0, pre, suf);
                   setTimeout(() => {
                     const s0 = performance.now();
                     const tick = now => {
-                      const p = Math.min((now-s0)/dur, 1);
+                      const p = Math.min((now - s0) / dur, 1);
                       node.textContent = fmt(target * ease(p), pre, suf);
-                      if (p<1) requestAnimationFrame(tick);
+                      if (p < 1) requestAnimationFrame(tick);
                     };
                     requestAnimationFrame(tick);
                   }, i * staggerMs);
@@ -366,17 +345,18 @@ export default function LandingPage({ onGetStarted }) {
               }}
             >
               {[
-                { init: '0%',    label: 'of contracts have at least one overcharge' },
-                { init: '$0',    label: 'average in charges found per scan' },
-                { init: '0 sec', label: 'to a full scored report' },
+                { init: '0%',    label: 'of buyers never check their purchase agreement' },
+                { init: '$0',    label: 'in hidden fees the average buyer pays' },
+                { init: '0 sec', label: 'to a full scored report'  },
               ].map(({ init, label }, i) => (
-                <div key={i}>
-                  <p className="hero-stat-num text-yellow text-2xl font-semibold tabular-nums">{init}</p>
-                  <p className="text-steel text-xs mt-1 max-w-[160px] leading-relaxed">{label}</p>
+                <div key={i} className="hero-stat-item">
+                  <p className="hero-stat-num text-warm-white text-2xl font-semibold tabular-nums font-display">{init}</p>
+                  <p className="text-warm-white/40 text-xs mt-1 max-w-[160px] leading-relaxed">{label}</p>
                 </div>
               ))}
-              <p className="w-full text-steel text-[11px] mt-2">*Based on analysis of 10,000+ contracts, 2023–2024.</p>
+              <p className="w-full text-warm-white/25 text-[11px] mt-1">*Based on analysis of 10,000+ purchase agreements.</p>
             </div>
+
           </div>
         </div>
       </section>
