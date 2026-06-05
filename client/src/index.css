@@ -208,6 +208,21 @@ input[type="number"] {
   .hero-stat-num { animation: none !important; opacity: 1 !important; transform: none !important; }
 }
 
+/* ── Hero section — ambient warmth behind headline ─────────────────── */
+.hero-section {
+  background-image: radial-gradient(
+    ellipse 75% 55% at 18% 38%,
+    oklch(16.5% 0.018 85) 0%,
+    transparent 72%
+  );
+}
+
+/* ── Hero headline proof numbers — deep gold evidence tone ──────────── */
+.hero-num {
+  color: var(--color-yellow-text);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── Hero badge — slow confident heartbeat ─────────────────────────── */
 .hero-badge-dot {
   animation: badgeHeartbeat 2.8s var(--ease-out-quint) infinite;
