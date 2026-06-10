@@ -33,5 +33,9 @@ services:
         sync: false  # set manually in dashboard
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false  # set manually in dashboard — never expose to client
+      - key: RESEND_API_KEY
+        sync: false  # set manually in dashboard
+      - key: EMAIL_FROM
+        sync: false  # verified sender/domain, e.g. "BringTheApp <reports@yourdomain.com>"
     healthCheckPath: /api/health
     autoDeploy: true

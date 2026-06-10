@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import PDFDocument from 'pdfkit';
+import { getUserFromRequest } from '../lib/supabaseAdmin.js';
+import { sendReportEmail } from '../lib/email.js';
 
 const router = Router();
 
@@ -32,14 +34,11 @@ function scoreColor(pts, max) {
 }
 
 /**
- * Generate a deal analysis PDF report and stream it as the response.
+ * Build a deal analysis PDF and resolve with the rendered Buffer + filename.
+ * Shared by the download route (`POST /report`) and the email sender.
  */
-router.post('/report', async (req, res) => {
-  const { result } = req.body;
-  if (!result || typeof result !== 'object') {
-    return res.status(400).json({ error: 'Missing result object in request body' });
-  }
-
+export function buildDealPdfBuffer(result) {
+  return new Promise((resolve, reject) => {
   const v = result.vehicle || {};
   const e = result.entered || {};
   const c = result.calculated || {};
@@ -49,9 +48,6 @@ router.post('/report', async (req, res) => {
   const filename = `BringTheApp-${safe(v.year)}-${safe(v.make)}-${safe(v.model)}-${score}.pdf`
     .replace(/\s+/g, '-')
     .replace(/--+/g, '-');
-
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
   const doc = new PDFDocument({
     size: 'A4',
@@ -63,7 +59,10 @@ router.post('/report', async (req, res) => {
     },
   });
 
-  doc.pipe(res);
+  const chunks = [];
+  doc.on('data', (chunk) => chunks.push(chunk));
+  doc.on('end', () => resolve({ buffer: Buffer.concat(chunks), filename }));
+  doc.on('error', reject);
 
   // ---- Page dimensions ----
   const pageW = doc.page.width;
@@ -376,6 +375,58 @@ router.post('/report', async (req, res) => {
   );
 
   doc.end();
+  });
+}
+
+/**
+ * POST /api/pdf/report — generate the PDF and stream it as a download.
+ */
+router.post('/report', async (req, res) => {
+  const { result } = req.body;
+  if (!result || typeof result !== 'object') {
+    return res.status(400).json({ error: 'Missing result object in request body' });
+  }
+  try {
+    const { buffer, filename } = await buildDealPdfBuffer(result);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  } catch (err) {
+    console.error('PDF generation error:', err);
+    res.status(500).json({ error: 'PDF generation failed', message: err.message });
+  }
+});
+
+/**
+ * POST /api/pdf/email — email the PDF report as an attachment.
+ * Requires a signed-in user (Supabase bearer token).
+ */
+router.post('/email', async (req, res) => {
+  const { result, email } = req.body;
+  if (!result || typeof result !== 'object') {
+    return res.status(400).json({ error: 'Missing result object in request body' });
+  }
+
+  let user = null;
+  try {
+    user = await getUserFromRequest(req);
+  } catch {
+    user = null;
+  }
+  if (!user) return res.status(401).json({ error: 'Sign in to email your report.' });
+
+  const to = String(email || user.email || '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+    return res.status(400).json({ error: 'Please provide a valid email address.' });
+  }
+
+  try {
+    await sendReportEmail({ to, result });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Email send error:', err);
+    res.status(500).json({ error: 'Failed to send report email', message: err.message });
+  }
 });
 
 // ---- Helpers ----

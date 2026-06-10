@@ -5,6 +5,7 @@ import MarketCheck from '../components/MarketCheck';
 import FlagsPanel from '../components/FlagsPanel';
 import FeeBreakdown from '../components/FeeBreakdown';
 import NegotiationTips from '../components/NegotiationTips';
+import EmailReportDialog from '../components/EmailReportDialog';
 import { getVehiclePhoto, generatePdfReport } from '../lib/api';
 import { saveReport, MAX_REPORTS } from '../lib/reports';
 
@@ -20,6 +21,7 @@ export default function ResultsView({ dealData, result, onEditDeal, onNewDeal, o
   const [saveStatus, setSaveStatus] = useState(null); // null | 'naming' | 'saving' | 'saved' | 'error'
   const [saveName, setSaveName] = useState('');
   const [saveError, setSaveError] = useState('');
+  const [showEmail, setShowEmail] = useState(false);
   const reportRef = useRef(null);
 
   useEffect(() => {
@@ -80,19 +82,10 @@ export default function ResultsView({ dealData, result, onEditDeal, onNewDeal, o
     }
   };
 
-  const handleEmail = async () => {
-    await handleExportPdf();
-    // Only open mailto if PDF export didn't error
-    if (exportStatus === 'error') return;
-
-    const v = result.vehicle || {};
-    const subject = encodeURIComponent(`My car deal analysis: ${v.year || ''} ${v.make || ''} ${v.model || ''} — ${result.score}/100`.trim());
-    const body = encodeURIComponent(
-      `Hi,\n\nMy BringTheApp deal analysis is attached (downloaded to your device — please attach the PDF to this email).\n\nSummary: ${result.score}/100 — ${result.label}\nVehicle: ${v.year || ''} ${v.make || ''} ${v.model || ''} ${v.trim || ''}\n\nAnalyzed at https://bringtheapp.onrender.com`
-    );
-    setTimeout(() => {
-      window.location.href = `mailto:?subject=${subject}&body=${body}`;
-    }, 800);
+  /** Email the report PDF. Signed-in only — anonymous users hit the auth gate. */
+  const handleEmail = () => {
+    if (!user) { onSaveReport?.('auth'); return; }
+    setShowEmail(true);
   };
 
   const isExporting = exportStatus && exportStatus !== 'done' && exportStatus !== 'error';
@@ -308,6 +301,15 @@ export default function ResultsView({ dealData, result, onEditDeal, onNewDeal, o
           New Deal
         </button>
       </div>
+
+      {/* Email report dialog */}
+      {showEmail && (
+        <EmailReportDialog
+          result={result}
+          defaultEmail={user?.email || ''}
+          onClose={() => setShowEmail(false)}
+        />
+      )}
 
       {/* PDF Export Overlay — shown during generation, success, or error */}
       {exportStatus && (
