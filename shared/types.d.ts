@@ -7,7 +7,7 @@
  * sync with the response built in `server/routes/analyze.ts`.
  */
 
-export type CreditTier = 'excellent' | 'good' | 'fair' | 'poor';
+export type CreditTier = 'excellent' | 'very-good' | 'good' | 'fair' | 'poor';
 export type FlagSeverity = 'critical' | 'warning';
 export type MarketSource =
   | 'listings'
@@ -38,6 +38,8 @@ export interface DealInput {
   term?: number | string;
   creditTier?: CreditTier;
   zip?: string;
+  docFee?: number | string;
+  regFee?: number | string;
   addons?: Addon[];
 }
 
@@ -116,6 +118,8 @@ export interface MarketCalc {
   hasLiveData?: boolean;
   age?: number;
   depFactor?: number;
+  matchedTrim?: string;
+  allTrims?: Record<string, number>;
 }
 
 /** Live market data summary from Auto.dev (or a disabled placeholder). */
@@ -134,6 +138,7 @@ export interface MarketListings {
 /** Legal citation for a state's vehicle sales tax (tax-laws.json entry). */
 export interface TaxLaw {
   statute?: string;
+  law?: string;
   [key: string]: unknown;
 }
 

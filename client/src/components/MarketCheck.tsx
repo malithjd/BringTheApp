@@ -1,11 +1,23 @@
 import { useState, useMemo } from 'react';
 import { formatCurrency } from '../lib/format';
+import type { DealAnalysisResponse, Vehicle } from '../types';
 
-function PriceBar({ label, subtitle, reference, low, high, userPrice }) {
+interface PriceBarProps {
+  label: string;
+  subtitle?: string;
+  reference: number | null | undefined;
+  low: number | null | undefined;
+  high: number | null | undefined;
+  userPrice: number;
+}
+
+function PriceBar({ label, subtitle, reference, low, high, userPrice }: PriceBarProps) {
   if (reference == null) return null;
 
-  const range = high - low;
-  const position = range > 0 ? Math.max(0, Math.min(100, ((userPrice - low) / range) * 100)) : 50;
+  const lo = low ?? 0;
+  const hi = high ?? 0;
+  const range = hi - lo;
+  const position = range > 0 ? Math.max(0, Math.min(100, ((userPrice - lo) / range) * 100)) : 50;
   const diff = userPrice - reference;
   const ratio = userPrice / reference;
 
@@ -51,12 +63,20 @@ function PriceBar({ label, subtitle, reference, low, high, userPrice }) {
   );
 }
 
-export default function MarketCheck({ vehicle, market, price }) {
+type SortBy = 'distance' | 'price-asc' | 'price-desc';
+
+interface MarketCheckProps {
+  vehicle: Vehicle;
+  market: DealAnalysisResponse['market'];
+  price: number;
+}
+
+export default function MarketCheck({ vehicle, market, price }: MarketCheckProps) {
   const calc = market?.calculated;
   const listings = market?.listings;
   const isNew = vehicle.condition === 'new';
 
-  const [sortBy, setSortBy] = useState('distance'); // 'distance' | 'price-asc' | 'price-desc'
+  const [sortBy, setSortBy] = useState<SortBy>('distance');
   const [showAll, setShowAll] = useState(false);
 
   // Sorted list of ALL listings (or fall back to samples if allListings missing)
@@ -115,7 +135,7 @@ export default function MarketCheck({ vehicle, market, price }) {
               </div>
               <div className="flex justify-between">
                 <span className="text-text2">Age / Depreciation</span>
-                <span className="text-text">{calc.age}yr — {Math.round((1 - calc.depFactor) * 100)}% depreciated</span>
+                <span className="text-text">{calc.age}yr — {Math.round((1 - (calc.depFactor ?? 0)) * 100)}% depreciated</span>
               </div>
             </>
           )}
@@ -140,8 +160,8 @@ export default function MarketCheck({ vehicle, market, price }) {
           label="Market Average"
           subtitle={`From ${listings.listingCount} similar listing${listings.listingCount !== 1 ? 's' : ''}`}
           reference={listings.avgPrice}
-          low={listings.priceRange?.low || listings.avgPrice * 0.85}
-          high={listings.priceRange?.high || listings.avgPrice * 1.15}
+          low={listings.priceRange?.low || (listings.avgPrice ?? 0) * 0.85}
+          high={listings.priceRange?.high || (listings.avgPrice ?? 0) * 1.15}
           userPrice={price}
         />
       )}

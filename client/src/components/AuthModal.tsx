@@ -1,35 +1,39 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { useAuth } from '../lib/auth';
 
-export default function AuthModal({ onClose }) {
+type AuthMode = 'signin' | 'signup' | 'forgot';
+type Status = 'loading' | 'success' | { error: string } | null;
+
+export default function AuthModal({ onClose }: { onClose: () => void }) {
   const { signIn, signUp, forgotPassword } = useAuth();
-  const [mode, setMode] = useState('signin'); // 'signin' | 'signup' | 'forgot'
+  const [mode, setMode] = useState<AuthMode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [status, setStatus] = useState(null); // null | 'loading' | 'success' | { error }
+  const [status, setStatus] = useState<Status>(null);
   const [confirmSent, setConfirmSent] = useState(false);
   const [resetSent, setResetSent] = useState(false);
 
-  const modalRef = useRef(null);
-  const previousFocusRef = useRef(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
-  const switchMode = (next) => { setMode(next); setStatus(null); };
+  const statusError = status && typeof status === 'object' ? status.error : null;
+  const switchMode = (next: AuthMode) => { setMode(next); setStatus(null); };
 
   // Store previously focused element, focus first input on open
   useEffect(() => {
-    previousFocusRef.current = document.activeElement;
-    const focusable = modalRef.current?.querySelector('button:not([disabled]), input:not([disabled])');
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    const focusable = modalRef.current?.querySelector<HTMLElement>('button:not([disabled]), input:not([disabled])');
     focusable?.focus();
     return () => { previousFocusRef.current?.focus(); };
   }, []);
 
   // ESC key + focus trap
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { onClose(); return; }
       if (e.key !== 'Tab') return;
       const focusable = Array.from(
-        modalRef.current?.querySelectorAll(
+        modalRef.current?.querySelectorAll<HTMLElement>(
           'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
         ) ?? []
       );
@@ -48,7 +52,7 @@ export default function AuthModal({ onClose }) {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  const handle = async (e) => {
+  const handle = async (e: FormEvent) => {
     e.preventDefault();
     setStatus('loading');
     try {
@@ -68,7 +72,7 @@ export default function AuthModal({ onClose }) {
         onClose();
       }
     } catch (err) {
-      setStatus({ error: err.message });
+      setStatus({ error: err instanceof Error ? err.message : 'Something went wrong' });
     }
   };
 
@@ -182,9 +186,9 @@ export default function AuthModal({ onClose }) {
               </div>
             )}
 
-            {status?.error && (
+            {statusError && (
               <p role="alert" className="text-red text-xs bg-red/8 border border-red/20 rounded-lg px-3 py-2">
-                {status.error}
+                {statusError}
               </p>
             )}
 

@@ -1,4 +1,6 @@
-export default function FlagsPanel({ redFlags, greenFlags }) {
+import type { RedFlag, GreenFlag } from '../types';
+
+export default function FlagsPanel({ redFlags, greenFlags }: { redFlags: RedFlag[]; greenFlags: GreenFlag[] }) {
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden animate-fade-up">
       <div className="p-4 border-b border-border">

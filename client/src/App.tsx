@@ -6,25 +6,28 @@ import CompareView from './pages/CompareView';
 import AccountPage from './pages/AccountPage';
 import AuthModal from './components/AuthModal';
 import SavedReports from './components/SavedReports';
-import { AuthProvider, useAuth } from './lib/auth.jsx';
+import { AuthProvider, useAuth } from './lib/auth';
 import { fetchReports } from './lib/reports';
 import { initAnalytics, trackDealAnalyzed, trackStartOver } from './lib/analytics';
 import { initCookieConsent, analyticsAccepted, onConsentChange } from './lib/cookieconsent';
+import type { DealAnalysisResponse, FormState, SavedReport } from './types';
 
-const PATH_TO_VIEW = {
+type View = 'landing' | 'form' | 'results' | 'compare' | 'account';
+
+const PATH_TO_VIEW: Record<string, View> = {
   '/': 'landing',
   '/analyze': 'form',
   '/results': 'results',
   '/compare': 'compare',
   '/account': 'account',
 };
-const VIEW_TO_PATH = Object.fromEntries(Object.entries(PATH_TO_VIEW).map(([p, v]) => [v, p]));
+const VIEW_TO_PATH: Record<string, string> = Object.fromEntries(Object.entries(PATH_TO_VIEW).map(([p, v]) => [v, p]));
 
-function pathToView(pathname) {
+function pathToView(pathname: string): View {
   return PATH_TO_VIEW[pathname] ?? 'landing';
 }
 
-function syncHistory(view, replace = false) {
+function syncHistory(view: View, replace = false) {
   const path = VIEW_TO_PATH[view] ?? '/';
   const state = { view };
   if (replace) {
@@ -36,14 +39,14 @@ function syncHistory(view, replace = false) {
 
 function AppInner() {
   const { user, signOut, passwordRecovery } = useAuth();
-  const [view, setView] = useState(() => pathToView(window.location.pathname));
-  const [dealData, setDealData] = useState(null);
-  const [analysisResult, setAnalysisResult] = useState(null);
+  const [view, setView] = useState<View>(() => pathToView(window.location.pathname));
+  const [dealData, setDealData] = useState<FormState | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<DealAnalysisResponse | null>(null);
   const [formKey, setFormKey] = useState(0);
 
   const [showAuth, setShowAuth] = useState(false);
   const [showSavedReports, setShowSavedReports] = useState(false);
-  const [compareReports, setCompareReports] = useState(null);
+  const [compareReports, setCompareReports] = useState<{ a: SavedReport; b: SavedReport } | null>(null);
   const [savedCount, setSavedCount] = useState(0);
 
   useEffect(() => {
@@ -64,8 +67,8 @@ function AppInner() {
   useEffect(() => {
     const currentView = pathToView(window.location.pathname);
     window.history.replaceState({ view: currentView }, '', window.location.pathname);
-    const onPopState = (e) => {
-      const targetView = e.state?.view || pathToView(window.location.pathname);
+    const onPopState = (e: PopStateEvent) => {
+      const targetView = (e.state?.view as View | undefined) || pathToView(window.location.pathname);
       setView(targetView);
       window.scrollTo(0, 0);
     };
@@ -73,18 +76,18 @@ function AppInner() {
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
-  // If Supabase sends a password recovery token, redirect to /account
-  useEffect(() => {
-    if (passwordRecovery) goTo('account');
-  }, [passwordRecovery]);
-
-  const goTo = useCallback((nextView) => {
+  const goTo = useCallback((nextView: View) => {
     setView(nextView);
     syncHistory(nextView);
     window.scrollTo(0, 0);
   }, []);
 
-  const handleAnalysisComplete = (inputData, result) => {
+  // If Supabase sends a password recovery token, redirect to /account
+  useEffect(() => {
+    if (passwordRecovery) goTo('account');
+  }, [passwordRecovery, goTo]);
+
+  const handleAnalysisComplete = (inputData: FormState, result: DealAnalysisResponse) => {
     setDealData(inputData);
     setAnalysisResult(result);
     goTo('results');
@@ -103,19 +106,19 @@ function AppInner() {
   const handleEditDeal = useCallback(() => goTo('form'), [goTo]);
   const handleGetStarted = useCallback(() => goTo('form'), [goTo]);
 
-  const handleSaveReport = useCallback((action) => {
+  const handleSaveReport = useCallback((action: string) => {
     if (action === 'auth') { setShowAuth(true); return; }
     if (action === 'limit') { setShowSavedReports(true); return; }
     if (action === 'saved') { setSavedCount(n => n + 1); }
   }, []);
 
-  const handleLoadReport = useCallback((report) => {
+  const handleLoadReport = useCallback((report: SavedReport) => {
     setDealData(report.deal_data);
     setAnalysisResult(report.result);
     goTo('results');
   }, [goTo]);
 
-  const handleCompare = useCallback((a, b) => {
+  const handleCompare = useCallback((a: SavedReport, b: SavedReport) => {
     setCompareReports({ a, b });
     goTo('compare');
   }, [goTo]);

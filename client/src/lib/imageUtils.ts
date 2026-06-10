@@ -11,7 +11,7 @@ const JPEG_QUALITY = 0.85;
  * Read the EXIF orientation tag from a JPEG file.
  * Returns orientation value 1-8 (1 = normal, others = rotated/flipped).
  */
-function readExifOrientation(arrayBuffer) {
+function readExifOrientation(arrayBuffer: ArrayBuffer): number {
   const view = new DataView(arrayBuffer);
 
   // Check for JPEG SOI marker
@@ -66,7 +66,7 @@ function readExifOrientation(arrayBuffer) {
  * Apply EXIF orientation transform to a canvas context.
  * Returns the adjusted { width, height } of the canvas.
  */
-function applyOrientation(ctx, orientation, width, height) {
+function applyOrientation(ctx: CanvasRenderingContext2D, orientation: number, width: number, height: number): void {
   switch (orientation) {
     case 2:
       ctx.transform(-1, 0, 0, 1, width, 0);
@@ -102,33 +102,37 @@ function applyOrientation(ctx, orientation, width, height) {
  * - Converts to JPEG at 85% quality
  * - Returns both the processed Blob (for upload) and dataUrl (for thumbnail)
  *
- * @param {File} file - The image file to process
- * @returns {Promise<{ blob: Blob, dataUrl: string, width: number, height: number }>}
  */
-export async function preprocessImage(file) {
-  return new Promise((resolve, reject) => {
+export interface ProcessedImage {
+  blob: Blob;
+  dataUrl: string;
+  width: number;
+  height: number;
+}
+
+export async function preprocessImage(file: File): Promise<ProcessedImage> {
+  return new Promise<ProcessedImage>((resolve, reject) => {
     const reader = new FileReader();
 
     reader.onerror = () => reject(new Error('Failed to read image file'));
 
     reader.onload = (e) => {
-      const arrayBuffer = e.target.result;
+      const arrayBuffer = (e.target?.result as ArrayBuffer | null);
+      if (!arrayBuffer) { reject(new Error('Failed to read image file')); return; }
       const orientation = readExifOrientation(arrayBuffer);
 
       const img = new Image();
       img.onerror = () => reject(new Error('Failed to decode image'));
 
       img.onload = () => {
-        let { naturalWidth: srcW, naturalHeight: srcH } = img;
+        const { naturalWidth: srcW, naturalHeight: srcH } = img;
 
         // Determine if orientation swaps dimensions
         const swapDims = orientation >= 5 && orientation <= 8;
-        let drawW = srcW;
-        let drawH = srcH;
 
         // The "real" dimensions after orientation correction
-        let realW = swapDims ? srcH : srcW;
-        let realH = swapDims ? srcW : srcH;
+        const realW = swapDims ? srcH : srcW;
+        const realH = swapDims ? srcW : srcH;
 
         // Calculate resize scale based on long edge
         const longEdge = Math.max(realW, realH);
@@ -145,6 +149,7 @@ export async function preprocessImage(file) {
         canvas.width = finalW;
         canvas.height = finalH;
         const ctx = canvas.getContext('2d');
+        if (!ctx) { reject(new Error('Canvas 2D context unavailable')); return; }
 
         // Apply orientation transform
         if (orientation !== 1) {
@@ -185,7 +190,7 @@ export async function preprocessImage(file) {
 /**
  * Check if a file is a PDF.
  */
-export function isPDF(file) {
+export function isPDF(file: File): boolean {
   return file.type === 'application/pdf' || file.name?.toLowerCase().endsWith('.pdf');
 }
 
@@ -193,7 +198,7 @@ export function isPDF(file) {
  * Get a display-friendly thumbnail data URL for a PDF.
  * Returns a placeholder SVG since we cannot render PDFs client-side easily.
  */
-export function getPDFThumbnailUrl() {
+export function getPDFThumbnailUrl(): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="160" viewBox="0 0 120 160">
     <rect width="120" height="160" rx="8" fill="%231a1a2e"/>
     <rect x="10" y="10" width="100" height="140" rx="4" fill="%2316213e" stroke="%23334155" stroke-width="1"/>

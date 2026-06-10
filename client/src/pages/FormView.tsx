@@ -1,14 +1,15 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import DocumentUpload from '../components/DocumentUpload';
 import SearchableSelect from '../components/SearchableSelect';
 import MoneyInput from '../components/MoneyInput';
 import PaymentPreview from '../components/PaymentPreview';
 import { getMakes, getModels, getTrims, decodeVin, getTax, getFees, analyzeDeal } from '../lib/api';
+import type { CreditTier, DealAnalysisResponse, DealInput, FeesResult, FormState, Numish, OcrFields, TaxResult } from '../types';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 16 }, (_, i) => CURRENT_YEAR + 1 - i);
 const TERMS = [24, 36, 48, 60, 72, 84];
-const CREDIT_TIERS = [
+const CREDIT_TIERS: { value: CreditTier; label: string; apr: number }[] = [
   { value: 'excellent', label: 'Excellent', apr: 4.5 },
   { value: 'very-good', label: 'Very Good', apr: 6.0 },
   { value: 'good', label: 'Good', apr: 8.5 },
@@ -26,7 +27,7 @@ const DEFAULT_ADDONS = [
   { name: 'Window Tint', price: '', enabled: false },
 ];
 
-const initialFormState = {
+const initialFormState: FormState = {
   condition: 'new',
   year: String(CURRENT_YEAR),
   make: '',
@@ -50,26 +51,33 @@ const initialFormState = {
   addons: DEFAULT_ADDONS.map(a => ({ ...a })),
 };
 
-export default function FormView({ initialData, onAnalysisComplete }) {
-  const [mode, setMode] = useState('upload'); // 'upload' | 'form'
-  const [form, setForm] = useState(initialData || initialFormState);
-  const [makes, setMakes] = useState([]);
-  const [models, setModels] = useState([]);
-  const [trims, setTrims] = useState([]);
+interface FormViewProps {
+  initialData: FormState | null;
+  onAnalysisComplete: (form: FormState, result: DealAnalysisResponse) => void;
+}
+
+type SectionKey = 'vehicle' | 'deal' | 'addons' | 'financing';
+
+export default function FormView({ initialData, onAnalysisComplete }: FormViewProps) {
+  const [mode, setMode] = useState<'upload' | 'form'>('upload');
+  const [form, setForm] = useState<FormState>(initialData || initialFormState);
+  const [makes, setMakes] = useState<string[]>([]);
+  const [models, setModels] = useState<string[]>([]);
+  const [trims, setTrims] = useState<string[]>([]);
   const [loadingMakes, setLoadingMakes] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
   const [taxRate, setTaxRate] = useState(0);
-  const [stateInfo, setStateInfo] = useState(null);
-  const [feeInfo, setFeeInfo] = useState(null);
+  const [stateInfo, setStateInfo] = useState<TaxResult | null>(null);
+  const [feeInfo, setFeeInfo] = useState<FeesResult | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const [customAddonName, setCustomAddonName] = useState(null);
-  const [errors, setErrors] = useState({});
-  const [expandedSections, setExpandedSections] = useState({
+  const [customAddonName, setCustomAddonName] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [expandedSections, setExpandedSections] = useState<Record<SectionKey, boolean>>({
     vehicle: true, deal: true, addons: false, financing: false,
   });
   const [ocrFilled, setOcrFilled] = useState(false);
 
-  const set = useCallback((field, value) => {
+  const set = useCallback(<K extends keyof FormState>(field: K, value: FormState[K]) => {
     setForm(prev => ({ ...prev, [field]: value }));
   }, []);
 
@@ -144,22 +152,24 @@ export default function FormView({ initialData, onAnalysisComplete }) {
   }, [form.zip]);
 
   // VIN decode — clean spaces/special chars before validation
-  const handleVinChange = async (rawVin) => {
+  const handleVinChange = async (rawVin: string) => {
     const vin = rawVin.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
     set('vin', vin);
     if (vin.length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) {
       try {
         const data = await decodeVin(vin);
-        if (data.year) set('year', data.year);
+        if (data.year) set('year', String(data.year));
         if (data.make) set('make', data.make);
         if (data.model) set('model', data.model);
         if (data.trim) set('trim', data.trim);
-      } catch {}
+      } catch {
+        // VIN decode is best-effort — ignore failures
+      }
     }
   };
 
   // Credit tier → APR auto-fill
-  const handleCreditTier = (tier) => {
+  const handleCreditTier = (tier: CreditTier) => {
     const tierData = CREDIT_TIERS.find(t => t.value === tier);
     set('creditTier', tier);
     if (form.aprAuto) {
@@ -168,7 +178,7 @@ export default function FormView({ initialData, onAnalysisComplete }) {
   };
 
   // Handle OCR extracted fields
-  const handleOcrFields = (fields) => {
+  const handleOcrFields = (fields: OcrFields) => {
     setOcrFilled(true);
     const updates = { ...form };
     if (fields.year) updates.year = String(fields.year);
@@ -198,12 +208,13 @@ export default function FormView({ initialData, onAnalysisComplete }) {
     if (fields.docFee) updates.docFee = fields.docFee;
     if (fields.regFee) updates.regFee = fields.regFee;
     if (fields.addons) {
+      const ocrAddons = fields.addons;
       const merged = updates.addons.map(a => {
-        const ocrAddon = fields.addons.find(o => o.name === a.name);
+        const ocrAddon = ocrAddons.find(o => o.name === a.name);
         return ocrAddon ? { ...a, price: ocrAddon.price, enabled: true } : a;
       });
       // Add any OCR addons not in default list
-      fields.addons.forEach(o => {
+      ocrAddons.forEach(o => {
         if (!merged.find(m => m.name === o.name)) {
           merged.push({ name: o.name, price: o.price, enabled: true });
         }
@@ -218,8 +229,11 @@ export default function FormView({ initialData, onAnalysisComplete }) {
   };
 
   // Validate & submit
+  const num = (v: Numish) => parseFloat(String(v));
+  const int = (v: Numish) => parseInt(String(v), 10);
+
   const handleSubmit = async () => {
-    const newErrors = {};
+    const newErrors: Record<string, string> = {};
     if (!form.price) newErrors.price = 'Vehicle price is required';
     if (!form.zip || form.zip.length !== 5) newErrors.zip = 'Valid ZIP code required';
     if (!form.year) newErrors.year = 'Year is required';
@@ -234,7 +248,7 @@ export default function FormView({ initialData, onAnalysisComplete }) {
     setAnalyzing(true);
 
     try {
-      const payload = {
+      const payload: DealInput = {
         year: form.year,
         make: form.make,
         model: form.model,
@@ -242,28 +256,28 @@ export default function FormView({ initialData, onAnalysisComplete }) {
         condition: form.condition,
         mileage: form.mileage || undefined,
         zip: form.zip,
-        price: parseFloat(form.price),
-        down: parseFloat(form.down) || 0,
-        tradeIn: form.hasTradeIn ? parseFloat(form.tradeIn) || 0 : 0,
-        tradeOwed: form.hasTradeIn ? parseFloat(form.tradeOwed) || 0 : 0,
-        apr: form.hasFinancing ? (parseFloat(form.apr) || 0) : 0,
-        term: form.hasFinancing ? (parseInt(form.term) || 60) : 0,
-        creditTier: form.creditTier,
-        docFee: parseFloat(form.docFee) || 0,
-        regFee: parseFloat(form.regFee) || 0,
-        addons: form.addons.filter(a => a.enabled && a.price).map(a => ({ name: a.name, price: parseFloat(a.price) })),
+        price: num(form.price),
+        down: num(form.down) || 0,
+        tradeIn: form.hasTradeIn ? num(form.tradeIn) || 0 : 0,
+        tradeOwed: form.hasTradeIn ? num(form.tradeOwed) || 0 : 0,
+        apr: form.hasFinancing ? (num(form.apr) || 0) : 0,
+        term: form.hasFinancing ? (int(form.term) || 60) : 0,
+        creditTier: form.creditTier as CreditTier,
+        docFee: num(form.docFee) || 0,
+        regFee: num(form.regFee) || 0,
+        addons: form.addons.filter(a => a.enabled && a.price).map(a => ({ name: a.name, price: num(a.price) })),
       };
 
       const result = await analyzeDeal(payload);
       onAnalysisComplete(form, result);
     } catch (err) {
-      setErrors({ submit: err.message || 'Analysis failed. Please try again.' });
+      setErrors({ submit: err instanceof Error ? err.message : 'Analysis failed. Please try again.' });
     } finally {
       setAnalyzing(false);
     }
   };
 
-  const toggleSection = (section) => {
+  const toggleSection = (section: SectionKey) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
@@ -743,7 +757,15 @@ export default function FormView({ initialData, onAnalysisComplete }) {
   );
 }
 
-function Section({ title, expanded, onToggle, children, badge }) {
+interface SectionProps {
+  title: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+  badge?: number | null;
+}
+
+function Section({ title, expanded, onToggle, children, badge }: SectionProps) {
   return (
     <div className="bg-surface border border-border rounded-xl mb-4 overflow-hidden">
       <button

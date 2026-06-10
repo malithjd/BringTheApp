@@ -1,4 +1,5 @@
 import posthog from 'posthog-js';
+import type { DealAnalysisResponse } from '../types';
 
 const POSTHOG_KEY = import.meta.env.VITE_POSTHOG_KEY;
 const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com';
@@ -30,7 +31,7 @@ export function initAnalytics() {
 /**
  * Track a custom event. No-ops if PostHog isn't initialized.
  */
-export function track(event, properties = {}) {
+export function track(event: string, properties: Record<string, unknown> = {}) {
   if (!POSTHOG_KEY) return;
   posthog.capture(event, properties);
 }
@@ -38,7 +39,7 @@ export function track(event, properties = {}) {
 /**
  * Identify a user (for future auth features).
  */
-export function identify(userId, traits = {}) {
+export function identify(userId: string, traits: Record<string, unknown> = {}) {
   if (!POSTHOG_KEY) return;
   posthog.identify(userId, traits);
 }
@@ -54,12 +55,12 @@ export function resetIdentity() {
 // ---- Pre-defined event helpers for key product moments ----
 
 /** User uploaded documents for OCR scanning */
-export function trackOcrScan(pageCount, provider) {
+export function trackOcrScan(pageCount: number, provider: string) {
   track('ocr_scan_started', { page_count: pageCount, provider });
 }
 
 /** OCR extraction completed */
-export function trackOcrResult(success, fieldCount, pageCount, provider) {
+export function trackOcrResult(success: boolean, fieldCount: number, pageCount: number, provider: string) {
   track('ocr_scan_completed', {
     success,
     fields_extracted: fieldCount,
@@ -69,7 +70,7 @@ export function trackOcrResult(success, fieldCount, pageCount, provider) {
 }
 
 /** User submitted the form for deal analysis */
-export function trackDealAnalyzed(result) {
+export function trackDealAnalyzed(result: DealAnalysisResponse) {
   track('deal_analyzed', {
     score: result.score,
     label: result.label,
@@ -90,7 +91,7 @@ export function trackDealAnalyzed(result) {
 }
 
 /** User clicked "Start Over" */
-export function trackStartOver(fromView) {
+export function trackStartOver(fromView: string) {
   track('start_over', { from_view: fromView });
 }
 
@@ -105,6 +106,6 @@ export function trackEmailReport() {
 }
 
 /** User used a negotiation script (copy) */
-export function trackCopyScript(issue) {
+export function trackCopyScript(issue: string) {
   track('copy_negotiation_script', { issue });
 }

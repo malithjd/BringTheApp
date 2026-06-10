@@ -99,6 +99,6 @@ export function analyticsAccepted() {
 /**
  * Listen for consent changes (user toggles preferences after initial choice).
  */
-export function onConsentChange(callback) {
+export function onConsentChange(callback: EventListener): void {
   window.addEventListener('cc:onChange', callback);
 }

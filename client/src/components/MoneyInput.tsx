@@ -1,6 +1,15 @@
 import { useState } from 'react';
+import type { Numish } from '../types';
 
-export default function MoneyInput({ label, value, onChange, placeholder, hint }) {
+interface MoneyInputProps {
+  label?: string;
+  value: Numish;
+  onChange: (value: Numish) => void;
+  placeholder?: string;
+  hint?: string;
+}
+
+export default function MoneyInput({ label, value, onChange, placeholder, hint }: MoneyInputProps) {
   const [focused, setFocused] = useState(false);
 
   const displayValue = focused

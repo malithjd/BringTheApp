@@ -1,30 +1,48 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { emailReport } from '../lib/api';
+import type { DealAnalysisResponse } from '../types';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function EmailReportDialog({ result, defaultEmail = '', onClose }) {
-  const [email, setEmail] = useState(defaultEmail);
-  const [status, setStatus] = useState(null); // null | 'sending' | 'sent' | { error }
+const Spinner = () => (
+  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+  </svg>
+);
 
-  const modalRef = useRef(null);
-  const previousFocusRef = useRef(null);
+type Status = 'sending' | 'sent' | { error: string } | null;
+
+interface EmailReportDialogProps {
+  result: DealAnalysisResponse;
+  defaultEmail?: string;
+  onClose: () => void;
+}
+
+export default function EmailReportDialog({ result, defaultEmail = '', onClose }: EmailReportDialogProps) {
+  const [email, setEmail] = useState(defaultEmail);
+  const [status, setStatus] = useState<Status>(null);
+
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  const statusError = status && typeof status === 'object' ? status.error : null;
 
   // Store previously focused element, focus the email input on open
   useEffect(() => {
-    previousFocusRef.current = document.activeElement;
-    const focusable = modalRef.current?.querySelector('input:not([disabled]), button:not([disabled])');
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    const focusable = modalRef.current?.querySelector<HTMLElement>('input:not([disabled]), button:not([disabled])');
     focusable?.focus();
     return () => { previousFocusRef.current?.focus(); };
   }, []);
 
   // ESC key + focus trap
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { onClose(); return; }
       if (e.key !== 'Tab') return;
       const focusable = Array.from(
-        modalRef.current?.querySelectorAll(
+        modalRef.current?.querySelectorAll<HTMLElement>(
           'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
         ) ?? []
       );
@@ -45,7 +63,7 @@ export default function EmailReportDialog({ result, defaultEmail = '', onClose }
 
   const valid = EMAIL_RE.test(email.trim());
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!valid) { setStatus({ error: 'Please enter a valid email address.' }); return; }
     setStatus('sending');
@@ -53,16 +71,9 @@ export default function EmailReportDialog({ result, defaultEmail = '', onClose }
       await emailReport(result, email.trim());
       setStatus('sent');
     } catch (err) {
-      setStatus({ error: err.message || 'Failed to send. Please try again.' });
+      setStatus({ error: err instanceof Error ? err.message : 'Failed to send. Please try again.' });
     }
   };
-
-  const Spinner = () => (
-    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-    </svg>
-  );
 
   return (
     <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 'var(--z-modal)' }}>
@@ -126,9 +137,9 @@ export default function EmailReportDialog({ result, defaultEmail = '', onClose }
                 />
               </div>
 
-              {status?.error && (
+              {statusError && (
                 <p role="alert" className="text-red text-xs bg-red/8 border border-red/20 rounded-lg px-3 py-2">
-                  {status.error}
+                  {statusError}
                 </p>
               )}
 

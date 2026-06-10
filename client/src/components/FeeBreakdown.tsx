@@ -1,7 +1,18 @@
 import { formatCurrency } from '../lib/format';
+import type { CalculatedDeal, EnteredDeal } from '../types';
 
-export default function FeeBreakdown({ calculated, entered }) {
-  const rows = [
+type FeeStatus = 'fair' | 'high' | 'over-cap' | 'warning';
+
+interface FeeRow {
+  name: string;
+  amount: number;
+  law?: string | null;
+  note?: string | null;
+  status: FeeStatus;
+}
+
+export default function FeeBreakdown({ calculated, entered }: { calculated: CalculatedDeal; entered: EnteredDeal }) {
+  const rows: FeeRow[] = [
     {
       name: 'Sales Tax',
       amount: calculated.taxAmount,
@@ -44,7 +55,7 @@ export default function FeeBreakdown({ calculated, entered }) {
     });
   }
 
-  const statusIcon = (status) => {
+  const statusIcon = (status: FeeStatus) => {
     switch (status) {
       case 'fair': return <span className="text-green text-xs">✅ Fair</span>;
       case 'high': return <span className="text-amber text-xs">⚠️ High</span>;

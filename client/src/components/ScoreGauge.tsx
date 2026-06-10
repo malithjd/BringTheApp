@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
+import type { Vehicle } from '../types';
 
-export default function ScoreGauge({ score, label, vehicle, photoUrl }) {
+interface ScoreGaugeProps {
+  score: number;
+  label: string;
+  vehicle?: Vehicle | null;
+  photoUrl?: string | null;
+}
+
+export default function ScoreGauge({ score, label, vehicle, photoUrl }: ScoreGaugeProps) {
   const [animatedScore, setAnimatedScore] = useState(0);
 
   useEffect(() => {
@@ -8,10 +16,10 @@ export default function ScoreGauge({ score, label, vehicle, photoUrl }) {
       setAnimatedScore(score);
       return;
     }
-    let frame;
+    let frame: number;
     const start = performance.now();
     const duration = 1200;
-    const animate = (now) => {
+    const animate = (now: number) => {
       const elapsed = now - start;
       const progress = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
@@ -86,7 +94,7 @@ export default function ScoreGauge({ score, label, vehicle, photoUrl }) {
               loading="lazy"
               width="64"
               height="48"
-              onError={(e) => { e.target.style.display = 'none'; }}
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
             />
           )}
           <p className="text-text2 text-sm">
@@ -104,7 +112,7 @@ export default function ScoreGauge({ score, label, vehicle, photoUrl }) {
           alt={`${vehicle?.year} ${vehicle?.make} ${vehicle?.model}`}
           className="mt-4 rounded-lg w-full max-h-48 object-cover"
           loading="lazy"
-          onError={(e) => { e.target.style.display = 'none'; }}
+          onError={(e) => { e.currentTarget.style.display = 'none'; }}
         />
       )}
     </div>

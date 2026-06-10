@@ -1,29 +1,37 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, type DragEvent as ReactDragEvent, type ChangeEvent } from 'react';
 import { extractDocuments } from '../lib/api';
 import { preprocessImage, isPDF, getPDFThumbnailUrl } from '../lib/imageUtils';
 import { trackOcrScan, trackOcrResult, trackSkipOcr } from '../lib/analytics';
+import type { OcrFields } from '../types';
 
-/**
- * Multi-document upload component with image preprocessing.
- * Supports drag & drop, camera capture, and file picker.
- * Preprocesses images client-side before uploading.
- *
- * Props: { onFieldsExtracted, onSkip }
- */
-export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
-  // Each item: { id, file, blob, thumbnailUrl, name, isPdf, processing }
-  const [queue, setQueue] = useState([]);
+interface QueueItem {
+  id: number;
+  file: File;
+  blob: Blob | null;
+  thumbnailUrl: string | null;
+  name: string;
+  isPdf: boolean;
+  processing: boolean;
+}
+
+interface DocumentUploadProps {
+  onFieldsExtracted: (fields: OcrFields) => void;
+  onSkip: () => void;
+}
+
+export default function DocumentUpload({ onFieldsExtracted, onSkip }: DocumentUploadProps) {
+  const [queue, setQueue] = useState<QueueItem[]>([]);
   const [scanning, setScanning] = useState(false);
-  const [error, setError] = useState(null);
-  const [retryFiles, setRetryFiles] = useState(null);
+  const [error, setError] = useState<string | null>(null);
+  const [retryFiles, setRetryFiles] = useState<Blob[] | null>(null);
 
-  const fileInputRef = useRef(null);
-  const cameraInputRef = useRef(null);
-  const thumbnailStripRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const thumbnailStripRef = useRef<HTMLDivElement>(null);
   const nextId = useRef(0);
 
   // ---- Add files to the queue ----
-  const addFiles = useCallback(async (fileList) => {
+  const addFiles = useCallback(async (fileList: FileList | File[] | null) => {
     if (!fileList || fileList.length === 0) return;
     setError(null);
 
@@ -86,7 +94,7 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
   }, []);
 
   // ---- Remove an item from the queue ----
-  const removeItem = useCallback((id) => {
+  const removeItem = useCallback((id: number) => {
     setQueue((prev) => prev.filter((item) => item.id !== id));
   }, []);
 
@@ -101,7 +109,7 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
     trackOcrScan(readyItems.length, 'auto');
 
     try {
-      const blobs = readyItems.map((item) => item.blob);
+      const blobs = readyItems.map((item) => item.blob).filter((b): b is Blob => b != null);
       const result = await extractDocuments(blobs);
 
       if (result.success && result.fields && Object.keys(result.fields).length > 0) {
@@ -116,8 +124,8 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
       }
     } catch (err) {
       trackOcrResult(false, 0, readyItems.length, 'auto');
-      setError(err.message || 'Failed to process documents. Please try again.');
-      setRetryFiles(queue.filter((item) => !item.processing && item.blob).map((item) => item.blob));
+      setError(err instanceof Error ? err.message : 'Failed to process documents. Please try again.');
+      setRetryFiles(queue.filter((item) => !item.processing && item.blob).map((item) => item.blob).filter((b): b is Blob => b != null));
     } finally {
       setScanning(false);
     }
@@ -140,7 +148,7 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
         );
       }
     } catch (err) {
-      setError(err.message || 'Failed to process documents. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to process documents. Please try again.');
     } finally {
       setScanning(false);
     }
@@ -148,20 +156,20 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
 
   // ---- Drag & drop handlers ----
   const handleDrop = useCallback(
-    (e) => {
+    (e: ReactDragEvent) => {
       e.preventDefault();
       addFiles(e.dataTransfer.files);
     },
     [addFiles]
   );
 
-  const handleDragOver = useCallback((e) => {
+  const handleDragOver = useCallback((e: ReactDragEvent) => {
     e.preventDefault();
   }, []);
 
   // ---- File input handlers ----
   const handleFileInput = useCallback(
-    (e) => {
+    (e: ChangeEvent<HTMLInputElement>) => {
       addFiles(e.target.files);
       // Reset so the same file can be re-selected
       e.target.value = '';
@@ -170,7 +178,7 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
   );
 
   const handleCameraInput = useCallback(
-    (e) => {
+    (e: ChangeEvent<HTMLInputElement>) => {
       addFiles(e.target.files);
       e.target.value = '';
     },
@@ -224,7 +232,7 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
                 </div>
               ) : (
                 <img
-                  src={item.thumbnailUrl}
+                  src={item.thumbnailUrl ?? undefined}
                   alt={item.name}
                   className="w-full h-full object-cover"
                 />
@@ -325,7 +333,7 @@ export default function DocumentUpload({ onFieldsExtracted, onSkip }) {
         onClick={() => fileInputRef.current?.click()}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click(); } }}
         role="button"
-        tabIndex="0"
+        tabIndex={0}
         aria-label="Upload purchase agreement — click or drag and drop files here"
       >
         <div className="py-4">
@@ -457,7 +465,7 @@ const SCAN_STEPS = [
   { label: 'Finalizing', target: 98 },
 ];
 
-function ScanningProgress({ pageCount }) {
+function ScanningProgress({ pageCount }: { pageCount: number }) {
   const [progress, setProgress] = useState(0);
   const [stepIdx, setStepIdx] = useState(0);
 
