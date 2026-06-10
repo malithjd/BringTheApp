@@ -27,7 +27,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Serve static client build in production
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../client/dist')));
+  app.use(express.static(path.join(__dirname, '../../client/dist')));
 }
 
 // API routes
@@ -46,7 +46,7 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', ts: Date.now() })
 // SPA fallback in production (middleware, Express 5 compatible)
 if (process.env.NODE_ENV === 'production') {
   app.use((_req, res) => {
-    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+    res.sendFile(path.join(__dirname, '../../client/dist/index.html'));
   });
 }
 

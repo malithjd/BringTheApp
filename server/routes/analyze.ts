@@ -4,6 +4,82 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { getFeatures } from '../config.js';
 import { fetchMarketListings } from './auto-dev.js';
+import { errMsg } from '../lib/errors.js';
+import type { MarketListings, ScoreFactor } from '../../shared/types.js';
+
+interface Addon { name: string; price: number; }
+
+/**
+ * Internal market reference (calculated fair value or live-listings average).
+ * Looser than the shared MarketCalc — `source` is a plain string and a couple
+ * of MSRP-lookup fields ride along.
+ */
+interface MarketRef {
+  source: string;
+  estimated: number | null;
+  low: number | null;
+  high: number | null;
+  baseMsrp: number | null;
+  listingCount?: number;
+  hasLiveData?: boolean;
+  age?: number;
+  depFactor?: number;
+  allTrims?: unknown;
+  matchedTrim?: unknown;
+}
+
+/** Deal object (computed values) passed to the scoring engine. */
+interface ScoringDeal {
+  price: number;
+  apr: number;
+  term: number;
+  creditTier: string;
+  down: number;
+  tradeIn: number;
+  tradeOwed: number;
+  docFee: number;
+  regFee: number;
+  titleFee: number;
+  taxAmount: number;
+  totalInterest: number;
+  state?: string | null;
+  zip?: string;
+  year?: number | string;
+  make?: string;
+  model?: string;
+  condition?: string;
+  addons?: Addon[];
+}
+
+interface DocFeeRule {
+  capped?: boolean;
+  cap?: number;
+  percentCap?: number;
+  capType?: string;
+  law?: string;
+  lawSummary?: string;
+  typical?: number;
+}
+
+/** Per-state fee/tax reference data (state-fees.json entry). */
+interface StateData {
+  docFee?: DocFeeRule;
+  registration?: { estimatedRange?: number[] };
+  title?: { fee?: number };
+}
+
+/** Result of resolving a state's effective doc-fee cap for a given price. */
+interface DocFeeCap {
+  hasCap: boolean;
+  effectiveCap: number | null;
+  flatCap?: number | null;
+  percentCap?: number | null;
+  percentAmount?: number;
+  capType?: string;
+  law?: string | null;
+  lawSummary?: string | null;
+  explanation: string | null;
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
@@ -14,7 +90,7 @@ const taxRates = JSON.parse(readFileSync(path.join(__dirname, '../data/tax-rates
 const taxLaws = JSON.parse(readFileSync(path.join(__dirname, '../data/tax-laws.json'), 'utf-8'));
 
 // Fair APR by credit tier
-const FAIR_APR = {
+const FAIR_APR: Record<string, number> = {
   excellent: 5,
   'very-good': 7,
   good: 9,
@@ -23,18 +99,18 @@ const FAIR_APR = {
 };
 
 // Depreciation curve by vehicle age (years)
-const DEPRECIATION = {
+const DEPRECIATION: Record<number, number> = {
   0: 1.0, 1: 0.82, 2: 0.73, 3: 0.66, 4: 0.60, 5: 0.55,
   6: 0.50, 7: 0.46, 8: 0.42, 9: 0.39,
 };
 
-function getDepreciation(age) {
+function getDepreciation(age: number) {
   if (age <= 0) return 1.0;
   if (age >= 10) return 0.36;
   return DEPRECIATION[age] || 0.36;
 }
 
-function findMsrpKey(make, model) {
+function findMsrpKey(make: string, model: string) {
   const search = `${make} ${model}`.toLowerCase();
   return Object.keys(msrpData).find(k => k.toLowerCase() === search)
     || Object.keys(msrpData).find(k =>
@@ -43,7 +119,7 @@ function findMsrpKey(make, model) {
     );
 }
 
-function findTrimMsrp(make, model, year, trim) {
+function findTrimMsrp(make: string, model: string, year: number, trim?: string) {
   const key = findMsrpKey(make, model);
   if (!key || !msrpData[key]) return null;
 
@@ -78,7 +154,7 @@ function findTrimMsrp(make, model, year, trim) {
  * Handles percentage-based rules (e.g., Ohio: lesser of $398 or 10% of price).
  * Returns: { hasCap, effectiveCap, flatCap, percentCap, capType, law, explanation }
  */
-function calculateEffectiveDocFeeCap(stateData, vehiclePrice) {
+function calculateEffectiveDocFeeCap(stateData: StateData | undefined, vehiclePrice: number): DocFeeCap {
   const df = stateData?.docFee;
   if (!df?.capped) {
     return { hasCap: false, effectiveCap: null, law: null, explanation: null };
@@ -139,15 +215,16 @@ function calculateEffectiveDocFeeCap(stateData, vehiclePrice) {
  * Prefers live market listings over calculated fair value when available.
  * Returns: { source: 'listings' | 'calculated', estimated, low, high, baseMsrp, listingCount, hasLiveData }
  */
-function buildMarketReference(calculated, listings) {
-  const hasLiveData = listings?.enabled !== false && listings?.avgPrice != null && listings?.listingCount > 0;
+function buildMarketReference(calculated: MarketRef, listings: MarketListings | null): MarketRef {
+  const hasLiveData = listings?.enabled !== false && listings?.avgPrice != null && (listings?.listingCount ?? 0) > 0;
 
-  if (hasLiveData) {
+  if (hasLiveData && listings) {
+    const avg = listings.avgPrice ?? 0;
     return {
       source: 'listings',
-      estimated: listings.avgPrice,
-      low: listings.priceRange?.low || Math.round(listings.avgPrice * 0.9),
-      high: listings.priceRange?.high || Math.round(listings.avgPrice * 1.1),
+      estimated: listings.avgPrice ?? null,
+      low: listings.priceRange?.low || Math.round(avg * 0.9),
+      high: listings.priceRange?.high || Math.round(avg * 1.1),
       baseMsrp: calculated?.baseMsrp ?? null,
       listingCount: listings.listingCount,
       hasLiveData: true,
@@ -165,7 +242,10 @@ function buildMarketReference(calculated, listings) {
   };
 }
 
-function estimateMarketValue(make, model, year, trim, condition, mileage) {
+function estimateMarketValue(
+  make: string, model: string, year: number, trim?: string,
+  condition?: string, mileage?: number | string,
+) {
   const msrpInfo = findTrimMsrp(make, model, year, trim);
   let baseMsrp = msrpInfo?.msrp;
 
@@ -181,8 +261,8 @@ function estimateMarketValue(make, model, year, trim, condition, mileage) {
       high: Math.round(baseMsrp * 1.15),
       baseMsrp,
       source: 'msrp-data',
-      allTrims: msrpInfo.allTrims,
-      matchedTrim: msrpInfo.trim,
+      allTrims: msrpInfo?.allTrims,
+      matchedTrim: msrpInfo?.trim,
     };
   }
 
@@ -195,7 +275,7 @@ function estimateMarketValue(make, model, year, trim, condition, mileage) {
   // Mileage adjustment: deduct 1% per 5000 miles over 12000/year average
   if (mileage) {
     const expectedMiles = age * 12000;
-    const excessMiles = mileage - expectedMiles;
+    const excessMiles = Number(mileage) - expectedMiles;
     if (excessMiles > 0) {
       const mileagePenalty = Math.floor(excessMiles / 5000) * 0.01;
       estimated = Math.round(estimated * (1 - mileagePenalty));
@@ -215,7 +295,7 @@ function estimateMarketValue(make, model, year, trim, condition, mileage) {
   };
 }
 
-function calculatePayment(principal, aprPercent, termMonths) {
+function calculatePayment(principal: number, aprPercent: number, termMonths: number) {
   if (principal <= 0 || termMonths <= 0) return 0;
   if (aprPercent <= 0) return Math.round((principal / termMonths) * 100) / 100;
 
@@ -225,8 +305,8 @@ function calculatePayment(principal, aprPercent, termMonths) {
   return Math.round(payment * 100) / 100;
 }
 
-function scoreDeal(deal, market, stateData, taxInfo) {
-  const factors = [];
+function scoreDeal(deal: ScoringDeal, market: MarketRef, stateData?: StateData, _taxInfo?: unknown) {
+  const factors: ScoreFactor[] = [];
   let totalScore = 0;
 
   // Factor 1: Price vs Market (35 pts max)
@@ -273,7 +353,7 @@ function scoreDeal(deal, market, stateData, taxInfo) {
   let feePts = 15;
   const docFeeCapInfo = calculateEffectiveDocFeeCap(stateData, deal.price);
   if (docFeeCapInfo.hasCap) {
-    const cap = docFeeCapInfo.effectiveCap;
+    const cap = docFeeCapInfo.effectiveCap ?? 0;
     if (docFee <= cap) feePts = 15;
     else if (docFee <= cap * 1.1) feePts = 10;
     else feePts = 5;
@@ -359,7 +439,7 @@ function scoreDeal(deal, market, stateData, taxInfo) {
   return { score: finalScore, label, factors };
 }
 
-function generateFlags(deal, market, stateData) {
+function generateFlags(deal: ScoringDeal, market: MarketRef, stateData?: StateData) {
   const redFlags = [];
   const greenFlags = [];
   const totalAddons = (deal.addons || []).reduce((sum, a) => sum + (a.price || 0), 0);
@@ -411,7 +491,7 @@ function generateFlags(deal, market, stateData) {
   }
 
   const docCapInfo = calculateEffectiveDocFeeCap(stateData, deal.price);
-  if (docCapInfo.hasCap && deal.docFee > docCapInfo.effectiveCap) {
+  if (docCapInfo.hasCap && deal.docFee > (docCapInfo.effectiveCap ?? 0)) {
     redFlags.push({
       severity: 'critical',
       title: 'Doc Fee Exceeds Legal Cap',
@@ -576,7 +656,7 @@ function generateFlags(deal, market, stateData) {
   return { redFlags, greenFlags };
 }
 
-function generateNegotiationScripts(deal, market, stateData) {
+function generateNegotiationScripts(deal: ScoringDeal, market: MarketRef, stateData?: StateData) {
   const scripts = [];
 
   if (market.estimated && deal.price > market.estimated * 1.05) {
@@ -610,7 +690,7 @@ function generateNegotiationScripts(deal, market, stateData) {
     const lawRef = scriptDocCap.law ? ` per ${scriptDocCap.law}` : '';
     const stateLabel = deal.state ? `in ${deal.state}${deal.zip ? ` (based on ZIP: ${deal.zip})` : ''}` : '';
 
-    if (deal.docFee > scriptDocCap.effectiveCap) {
+    if (deal.docFee > (scriptDocCap.effectiveCap ?? 0)) {
       // Exceeds legal cap
       let capText;
       if (scriptDocCap.percentCap && scriptDocCap.capType === 'lesser-of') {
@@ -624,7 +704,7 @@ function generateNegotiationScripts(deal, market, stateData) {
         issue: 'Doc Fee Over Legal Cap',
         script: `"The doc fee ${stateLabel} is ${capText}${lawRef}. For this $${deal.price.toLocaleString()} vehicle, the maximum allowed is $${scriptDocCap.effectiveCap}. You've charged $${deal.docFee} — please correct this to the legal limit of $${scriptDocCap.effectiveCap}."`,
       });
-    } else if (scriptDocCap.percentCap && scriptDocCap.capType === 'lesser-of' && deal.docFee === scriptDocCap.flatCap && scriptDocCap.percentAmount < scriptDocCap.flatCap) {
+    } else if (scriptDocCap.percentCap && scriptDocCap.capType === 'lesser-of' && deal.docFee === scriptDocCap.flatCap && (scriptDocCap.percentAmount ?? 0) < (scriptDocCap.flatCap ?? 0)) {
       // Fee is AT the flat cap but percent-based cap would be lower
       // e.g., OH: dealer charged $398 but 10% of $15,796 = $1,580 → NOT applicable (flat is lower)
       // This branch is skipped — keep for future reverse scenarios
@@ -705,7 +785,7 @@ router.post('/', async (req, res) => {
     const totalDocFee = (docFee != null && docFee !== '') ? parseFloat(docFee) : (stateData?.docFee?.typical || stateData?.docFee?.cap || 0);
     const totalRegFee = (regFee != null && regFee !== '') ? parseFloat(regFee) : (stateData?.registration?.estimatedRange?.[0] || 0);
     const totalTitleFee = (titleFee != null && titleFee !== '') ? parseFloat(titleFee) : (stateData?.title?.fee || 0);
-    const totalAddons = (addons || []).reduce((sum, a) => sum + (a.price || 0), 0);
+    const totalAddons = (addons || []).reduce((sum: number, a: { price?: number }) => sum + (a.price || 0), 0);
 
     // Total cost
     const totalCost = price + taxAmount + totalDocFee + totalRegFee + totalTitleFee + totalAddons;
@@ -729,7 +809,7 @@ router.post('/', async (req, res) => {
     try {
       listings = await fetchMarketListings(year, make, model, mileage, zip);
     } catch (err) {
-      console.warn('Listings fetch failed, using calculated value only:', err.message);
+      console.warn('Listings fetch failed, using calculated value only:', errMsg(err));
     }
 
     // Build unified market reference — prefers live listings, falls back to calculated
@@ -811,7 +891,7 @@ router.post('/', async (req, res) => {
     });
   } catch (err) {
     console.error('Analysis error:', err);
-    res.status(500).json({ error: 'Analysis failed', message: err.message });
+    res.status(500).json({ error: 'Analysis failed', message: errMsg(err) });
   }
 });
 

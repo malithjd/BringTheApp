@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { Request, Response } from 'express';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -40,7 +41,7 @@ router.get('/models/:make/:year', async (req, res) => {
     const response = await fetch(
       `https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${year}?format=json`
     );
-    const data = await response.json();
+    const data = await response.json() as { Results: Array<{ Model_ID: number; Model_Name: string }> };
     const models = data.Results.map(m => ({
       id: m.Model_ID,
       name: m.Model_Name,
@@ -76,8 +77,8 @@ router.get('/vin/:vin', async (req, res) => {
     const response = await fetch(
       `https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/${vin}?format=json`
     );
-    const data = await response.json();
-    const result = data.Results[0];
+    const data = await response.json() as { Results: Array<Record<string, string>> };
+    const result = data.Results[0]!;
 
     res.json({
       year: result.ModelYear,
@@ -99,8 +100,8 @@ router.get('/vin/:vin', async (req, res) => {
 router.get('/msrp/:make/:model/:year/:trim', msrpHandler);
 router.get('/msrp/:make/:model/:year', msrpHandler);
 
-function msrpHandler(req, res) {
-  const { make, model, year, trim } = req.params;
+function msrpHandler(req: Request, res: Response) {
+  const { make, model, year, trim } = req.params as Record<string, string>;
   const key = findMsrpKey(make, model);
 
   if (!key || !msrpData[key]) {
@@ -152,13 +153,13 @@ function msrpHandler(req, res) {
   });
 }
 
-function findMsrpKey(make, model) {
+function findMsrpKey(make: string, model: string) {
   const search = `${make} ${model}`.toLowerCase();
   return Object.keys(msrpData).find(k => k.toLowerCase() === search)
     || Object.keys(msrpData).find(k => k.toLowerCase().includes(model.toLowerCase()) && k.toLowerCase().includes(make.toLowerCase()));
 }
 
-function findTrimKey(yearData, trim) {
+function findTrimKey(yearData: Record<string, number>, trim: string) {
   const t = trim.toLowerCase();
   return Object.keys(yearData).find(k => k.toLowerCase() === t)
     || Object.keys(yearData).find(k => k.toLowerCase().includes(t) || t.includes(k.toLowerCase()));

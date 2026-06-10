@@ -1,13 +1,12 @@
 import { Resend } from 'resend';
 import { buildDealPdfBuffer } from '../routes/pdf.js';
+import type { DealAnalysisResponse } from '../../shared/types.js';
 
 /**
  * Email a deal analysis PDF to a recipient as an attachment, via Resend.
  * Requires RESEND_API_KEY and EMAIL_FROM env vars; throws clear errors if unset.
- *
- * @param {{ to: string, result: object }} params
  */
-export async function sendReportEmail({ to, result }) {
+export async function sendReportEmail({ to, result }: { to: string; result: DealAnalysisResponse }) {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM;
   if (!apiKey) throw new Error('RESEND_API_KEY is not configured');

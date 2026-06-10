@@ -9,6 +9,8 @@ export function getFeatures() {
   };
 }
 
-export function isEnabled(feature) {
+export type FeatureName = 'marketListings' | 'vehiclePhotos' | 'marketAverage';
+
+export function isEnabled(feature: FeatureName) {
   return getFeatures()[feature] !== false;
 }

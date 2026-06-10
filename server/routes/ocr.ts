@@ -1,8 +1,50 @@
 import { Router } from 'express';
 import multer from 'multer';
 import sharp from 'sharp';
+import { errMsg } from '../lib/errors.js';
 
 const router = Router();
+
+interface FormAddon { name: string; price: number; enabled: boolean; }
+
+/** A document page after preprocessing, ready to send to a vision provider. */
+interface ProcessedImage { base64: string; mimeType?: string; source?: string; }
+
+/** Simplified, form-compatible fields extracted from a document. */
+interface FormFields {
+  vin?: string;
+  year?: string;
+  make?: string;
+  model?: string;
+  trim?: string;
+  mileage?: number | string;
+  condition?: string;
+  price?: number;
+  msrp?: number;
+  docFee?: number;
+  taxAmount?: number;
+  regFee?: number;
+  titleFee?: number;
+  tradeIn?: number;
+  tradeOwed?: number;
+  apr?: number;
+  term?: number;
+  monthlyPayment?: number;
+  down?: number;
+  addons?: FormAddon[];
+  factoryOptions?: Array<{ code: string; description: string; price: number }>;
+}
+
+/** Rich structured extraction returned by a vision provider. */
+interface ExtractedDeal {
+  vehicle?: { vin?: string; year?: number | string; make?: string; model?: string; trim?: string; mileage?: number | string; condition?: string };
+  pricing?: { sales_price?: number; selling_price?: number; discount?: number; msrp?: number; doc_fee?: number; sales_tax?: number; registration_fee?: number; title_fee?: number };
+  trade_in?: { gross_trade_value?: number; payoff_amount?: number };
+  financing?: { apr?: number; term_months?: number; monthly_payment?: number; down_payment?: number };
+  dealer_addons?: Array<{ description?: string; price?: number }>;
+  aftermarket_products?: Array<{ type?: string; price?: number }>;
+  factory_options?: Array<{ code?: string; description?: string; price?: number }>;
+}
 
 // ---------------------------------------------------------------------------
 // Multer config – memory storage, up to 10 files, 10 MB each
@@ -25,7 +67,7 @@ const upload = multer({
 // ---------------------------------------------------------------------------
 // Image preprocessing – resize to max 1500 px long edge, JPEG 85 %
 // ---------------------------------------------------------------------------
-async function preprocessImage(buffer) {
+async function preprocessImage(buffer: Buffer) {
   const meta = await sharp(buffer).metadata();
   const longest = Math.max(meta.width || 0, meta.height || 0);
   let pipeline = sharp(buffer);
@@ -379,7 +421,7 @@ const CLAUDE_TOOL_SCHEMA = {
 // ---------------------------------------------------------------------------
 // Provider: Google Gemini (free tier – default)
 // ---------------------------------------------------------------------------
-async function extractWithGemini(processedImages) {
+async function extractWithGemini(processedImages: ProcessedImage[]): Promise<ExtractedDeal> {
   const apiKey = process.env.GOOGLE_AI_KEY;
   if (!apiKey) {
     throw new Error('GOOGLE_AI_KEY is not configured. Get a free key at https://aistudio.google.com/apikey');
@@ -424,19 +466,19 @@ async function extractWithGemini(processedImages) {
     throw new Error(`Gemini API error ${resp.status}: ${errBody}`);
   }
 
-  const data = await resp.json();
+  const data = await resp.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) {
     throw new Error('Gemini returned no content. Try again with clearer images.');
   }
 
-  return JSON.parse(text);
+  return JSON.parse(text) as ExtractedDeal;
 }
 
 // ---------------------------------------------------------------------------
 // Provider: OpenAI GPT-4o / GPT-4o-mini
 // ---------------------------------------------------------------------------
-async function extractWithOpenAI(processedImages) {
+async function extractWithOpenAI(processedImages: ProcessedImage[]): Promise<ExtractedDeal> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY is not configured.');
@@ -487,19 +529,19 @@ async function extractWithOpenAI(processedImages) {
     throw new Error(`OpenAI API error ${resp.status}: ${errBody}`);
   }
 
-  const data = await resp.json();
+  const data = await resp.json() as { choices?: Array<{ message?: { content?: string } }> };
   const text = data.choices?.[0]?.message?.content;
   if (!text) {
     throw new Error('OpenAI returned no content.');
   }
 
-  return JSON.parse(text);
+  return JSON.parse(text) as ExtractedDeal;
 }
 
 // ---------------------------------------------------------------------------
 // Provider: Anthropic Claude (Sonnet / Haiku / Opus)
 // ---------------------------------------------------------------------------
-async function extractWithClaude(processedImages) {
+async function extractWithClaude(processedImages: ProcessedImage[]): Promise<ExtractedDeal> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error('ANTHROPIC_API_KEY is not configured.');
@@ -550,13 +592,13 @@ async function extractWithClaude(processedImages) {
     throw new Error(`Claude API error ${resp.status}: ${errBody}`);
   }
 
-  const data = await resp.json();
+  const data = await resp.json() as { content?: Array<{ type?: string; input?: ExtractedDeal }> };
   const toolBlock = data.content?.find((b) => b.type === 'tool_use');
   if (!toolBlock) {
     throw new Error('Claude did not return structured extraction.');
   }
 
-  return toolBlock.input;
+  return toolBlock.input as ExtractedDeal;
 }
 
 // ---------------------------------------------------------------------------
@@ -570,7 +612,7 @@ const PROVIDERS = {
 
 function getActiveProvider() {
   const name = (process.env.VISION_PROVIDER || 'gemini').toLowerCase();
-  const provider = PROVIDERS[name];
+  const provider = PROVIDERS[name as keyof typeof PROVIDERS];
   if (!provider) {
     throw new Error(`Unknown VISION_PROVIDER "${name}". Supported: ${Object.keys(PROVIDERS).join(', ')}`);
   }
@@ -580,8 +622,8 @@ function getActiveProvider() {
 // ---------------------------------------------------------------------------
 // Map rich extraction to simplified form-compatible fields
 // ---------------------------------------------------------------------------
-function mapToFormFields(extracted) {
-  const f = {};
+function mapToFormFields(extracted: ExtractedDeal): FormFields {
+  const f: FormFields = {};
 
   // Vehicle basics
   if (extracted.vehicle) {
@@ -637,24 +679,24 @@ function mapToFormFields(extracted) {
   }
 
   // Add-ons (combine dealer_addons + aftermarket_products for legacy format)
-  const addons = [];
+  const addons: FormAddon[] = [];
   if (extracted.dealer_addons) {
     for (const a of extracted.dealer_addons) {
-      addons.push({ name: a.description, price: a.price ?? 0, enabled: true });
+      addons.push({ name: a.description ?? '', price: a.price ?? 0, enabled: true });
     }
   }
   if (extracted.aftermarket_products) {
     for (const a of extracted.aftermarket_products) {
-      addons.push({ name: a.type, price: a.price ?? 0, enabled: true });
+      addons.push({ name: a.type ?? '', price: a.price ?? 0, enabled: true });
     }
   }
   if (addons.length > 0) f.addons = addons;
 
   // Factory options (separate from add-ons — these are part of MSRP)
-  if (extracted.factory_options?.length > 0) {
-    f.factoryOptions = extracted.factory_options.map(o => ({
+  if ((extracted.factory_options?.length ?? 0) > 0) {
+    f.factoryOptions = extracted.factory_options!.map(o => ({
       code: o.code || '',
-      description: o.description,
+      description: o.description ?? '',
       price: o.price ?? 0,
     }));
   }
@@ -665,12 +707,12 @@ function mapToFormFields(extracted) {
 // ---------------------------------------------------------------------------
 // NHTSA vPIC VIN decode helper
 // ---------------------------------------------------------------------------
-async function nhtsaVinDecode(vin) {
+async function nhtsaVinDecode(vin: string) {
   try {
     const resp = await fetch(
       `https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/${vin}?format=json`,
     );
-    const data = await resp.json();
+    const data = await resp.json() as { Results?: Array<Record<string, string>> };
     return data.Results?.[0] || null;
   } catch {
     return null;
@@ -700,11 +742,12 @@ router.post('/extract', upload.array('documents', 10), async (req, res) => {
     const provider = getActiveProvider();
 
     // ----- Collect image buffers from uploads + base64 body -----
-    const imageBuffers = [];
+    const imageBuffers: Array<{ buffer: Buffer; source: string }> = [];
 
     // From file uploads
-    if (req.files && req.files.length > 0) {
-      for (const file of req.files) {
+    const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+    if (files.length > 0) {
+      for (const file of files) {
         imageBuffers.push({ buffer: file.buffer, source: file.originalname });
       }
     }
@@ -729,7 +772,7 @@ router.post('/extract', upload.array('documents', 10), async (req, res) => {
     }
 
     // ----- Preprocess images -----
-    const processedImages = [];
+    const processedImages: ProcessedImage[] = [];
     for (const img of imageBuffers) {
       try {
         const jpegBuf = await preprocessImage(img.buffer);
@@ -738,7 +781,7 @@ router.post('/extract', upload.array('documents', 10), async (req, res) => {
           source: img.source,
         });
       } catch (err) {
-        console.warn(`Skipping image ${img.source}: preprocessing failed –`, err.message);
+        console.warn(`Skipping image ${img.source}: preprocessing failed –`, errMsg(err));
       }
     }
 
@@ -784,7 +827,7 @@ router.post('/extract', upload.array('documents', 10), async (req, res) => {
     return res.status(500).json({
       success: false,
       error: 'OCR extraction failed',
-      message: err.message,
+      message: errMsg(err),
     });
   }
 });
@@ -792,8 +835,8 @@ router.post('/extract', upload.array('documents', 10), async (req, res) => {
 // ---------------------------------------------------------------------------
 // Legacy parseOcrText (kept for /parse-legacy fallback)
 // ---------------------------------------------------------------------------
-function parseOcrText(text) {
-  const fields = {};
+function parseOcrText(text: string): FormFields {
+  const fields: FormFields = {};
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
   const fullText = lines.join(' ');
 
@@ -885,7 +928,7 @@ function parseOcrText(text) {
     { name: 'Maintenance Plan', pattern: /(?:maintenance|service)\s*(?:plan|package)[:\s]*\$?([\d,]+\.?\d*)/i },
   ];
 
-  const addons = [];
+  const addons: FormAddon[] = [];
   for (const { name, pattern } of addonPatterns) {
     const match = fullText.match(pattern);
     if (match) {
@@ -930,7 +973,11 @@ router.post('/parse-legacy', upload.single('document'), async (req, res) => {
       body: formData,
     });
 
-    const ocrResult = await ocrResponse.json();
+    const ocrResult = await ocrResponse.json() as {
+      IsErroredOnProcessing?: boolean;
+      ErrorMessage?: string[];
+      ParsedResults?: Array<{ ParsedText?: string }>;
+    };
 
     if (ocrResult.IsErroredOnProcessing) {
       return res.status(422).json({
@@ -980,7 +1027,7 @@ router.post('/parse-legacy', upload.single('document'), async (req, res) => {
     });
   } catch (err) {
     console.error('OCR legacy error:', err);
-    res.status(500).json({ error: 'OCR processing failed', message: err.message });
+    res.status(500).json({ error: 'OCR processing failed', message: errMsg(err) });
   }
 });
 
