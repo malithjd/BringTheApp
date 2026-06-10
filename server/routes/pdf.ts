@@ -1,7 +1,13 @@
 import { Router } from 'express';
+import type { Request, Response } from 'express';
 import PDFDocument from 'pdfkit';
 import { getUserFromRequest } from '../lib/supabaseAdmin.js';
 import { sendReportEmail } from '../lib/email.js';
+import { errMsg } from '../lib/errors.js';
+import type { DealAnalysisResponse } from '../../shared/types.js';
+
+type Doc = PDFKit.PDFDocument;
+type Num = number | string | null | undefined;
 
 const router = Router();
 
@@ -20,12 +26,12 @@ const C = {
   flagBg: '#fafafa',          // near-white flag box bg
 };
 
-const money = (n) => n == null || isNaN(n) ? '—' : `$${Math.round(Number(n)).toLocaleString()}`;
-const money2 = (n) => n == null || isNaN(n) ? '—' : `$${Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
-const pct = (n) => n == null ? '—' : `${n}%`;
-const safe = (s) => s == null ? '' : String(s);
+const money = (n: Num) => n == null || isNaN(Number(n)) ? '—' : `$${Math.round(Number(n)).toLocaleString()}`;
+const money2 = (n: Num) => n == null || isNaN(Number(n)) ? '—' : `$${Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+const pct = (n: Num) => n == null ? '—' : `${n}%`;
+const safe = (s: unknown) => s == null ? '' : String(s);
 
-function scoreColor(pts, max) {
+function scoreColor(pts: number, max: number) {
   const ratio = max > 0 ? pts / max : 0;
   if (pts <= 0) return C.red;
   if (ratio >= 0.7) return C.green;
@@ -37,7 +43,7 @@ function scoreColor(pts, max) {
  * Build a deal analysis PDF and resolve with the rendered Buffer + filename.
  * Shared by the download route (`POST /report`) and the email sender.
  */
-export function buildDealPdfBuffer(result) {
+export function buildDealPdfBuffer(result: DealAnalysisResponse): Promise<{ buffer: Buffer; filename: string }> {
   return new Promise((resolve, reject) => {
   const v = result.vehicle || {};
   const e = result.entered || {};
@@ -59,8 +65,8 @@ export function buildDealPdfBuffer(result) {
     },
   });
 
-  const chunks = [];
-  doc.on('data', (chunk) => chunks.push(chunk));
+  const chunks: Buffer[] = [];
+  doc.on('data', (chunk: Buffer) => chunks.push(chunk));
   doc.on('end', () => resolve({ buffer: Buffer.concat(chunks), filename }));
   doc.on('error', reject);
 
@@ -151,14 +157,14 @@ export function buildDealPdfBuffer(result) {
   // LEFT: What You Entered
   doc.fillColor(C.text2).fontSize(8).font('Helvetica-Bold').text('WHAT YOU ENTERED', leftCol, y);
   let leftY = y + 16;
-  const entered = [
+  const entered = ([
     ['Vehicle Price', money(e.price)],
     ['Down Payment', money(e.down)],
     ['Trade-In', e.tradeIn ? money(e.tradeIn) : null],
     ['Amount Owed', e.tradeOwed ? money(e.tradeOwed) : null],
     ['APR', e.apr != null ? pct(e.apr) : null],
     ['Term', e.term ? `${e.term} months` : 'Cash deal'],
-  ].filter(([, val]) => val != null);
+  ] as Array<[string, string | null]>).filter((r): r is [string, string] => r[1] != null);
 
   for (const [k, val] of entered) {
     doc.fillColor(C.text2).fontSize(10).font('Helvetica').text(k, leftCol, leftY);
@@ -183,12 +189,12 @@ export function buildDealPdfBuffer(result) {
   // RIGHT: Calculated
   doc.fillColor(C.text2).fontSize(8).font('Helvetica-Bold').text('CALCULATED', rightCol, y);
   let rightY = y + 16;
-  const calcRows = [
+  const calcRows = ([
     [`Sales Tax${c.taxRate ? ` (${c.taxRate}%)` : ''}`, money2(c.taxAmount), c.taxLaw?.statute],
     ['Doc Fee', money(c.docFee), c.docFeeLaw],
     ['Registration', money(c.regFee)],
     ['Title Fee', money(c.titleFee)],
-  ].filter(([, val]) => val !== '—');
+  ] as Array<[string, string, (string | null | undefined)?]>).filter(([, val]) => val !== '—');
 
   for (const [k, val, legal] of calcRows) {
     doc.fillColor(C.text2).fontSize(10).font('Helvetica').text(k, rightCol, rightY);
@@ -206,7 +212,7 @@ export function buildDealPdfBuffer(result) {
   doc.strokeColor(C.border).lineWidth(0.5).moveTo(rightCol, rightY).lineTo(rightCol + colW, rightY).stroke();
   rightY += 8;
 
-  const totals = [
+  const totals: Array<[string, string, string, boolean]> = [
     ['Total Cost', money(c.totalCost), C.text, true],
     ['Loan Amount', money(c.loanAmount), C.text, true],
   ];
@@ -225,7 +231,7 @@ export function buildDealPdfBuffer(result) {
     doc.fillColor(C.accent).fontSize(13).font('Helvetica-Bold').text(money2(c.monthlyPayment), rightCol, rightY - 2, { width: colW, align: 'right' });
     rightY += 18;
   }
-  const restRows = [
+  const restRows: Array<[string, string, string?, boolean?]> = [
     ['Total Interest', money(c.totalInterest)],
     ['Total You\'ll Pay', money(c.totalPaid), C.text, true],
   ];
@@ -258,14 +264,14 @@ export function buildDealPdfBuffer(result) {
     if (calc?.age != null) {
       doc.fillColor(C.text2).fontSize(10).font('Helvetica').text('Age / Depreciation', leftX, y);
       doc.fillColor(C.text).fontSize(10).font('Helvetica').text(
-        `${calc.age}yr — ${Math.round((1 - calc.depFactor) * 100)}% depreciated`,
+        `${calc.age}yr — ${Math.round((1 - (calc.depFactor ?? 0)) * 100)}% depreciated`,
         leftX, y, { width: contentW, align: 'right' }
       );
       y += 20;
     }
 
     if (calc?.estimated != null) {
-      y = drawMarketBar(doc, leftX, y, contentW, 'Calculated Fair Value', 'MSRP + depreciation model', calc.estimated, calc.low, calc.high, e.price);
+      y = drawMarketBar(doc, leftX, y, contentW, 'Calculated Fair Value', 'MSRP + depreciation model', calc.estimated, calc.low ?? 0, calc.high ?? 0, e.price);
     }
     if (listings?.avgPrice != null) {
       y = drawMarketBar(doc, leftX, y, contentW, 'Market Average', `From ${listings.listingCount} similar listings`, listings.avgPrice, listings.priceRange?.low || listings.avgPrice * 0.85, listings.priceRange?.high || listings.avgPrice * 1.15, e.price);
@@ -393,7 +399,7 @@ router.post('/report', async (req, res) => {
     res.send(buffer);
   } catch (err) {
     console.error('PDF generation error:', err);
-    res.status(500).json({ error: 'PDF generation failed', message: err.message });
+    res.status(500).json({ error: 'PDF generation failed', message: errMsg(err) });
   }
 });
 
@@ -425,18 +431,25 @@ router.post('/email', async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('Email send error:', err);
-    res.status(500).json({ error: 'Failed to send report email', message: err.message });
+    res.status(500).json({ error: 'Failed to send report email', message: errMsg(err) });
   }
 });
 
 // ---- Helpers ----
 
-function drawSectionTitle(doc, title, x, y) {
+function drawSectionTitle(doc: Doc, title: string, x: number, y: number) {
   doc.fillColor(C.text).fontSize(13).font('Helvetica-Bold').text(title, x, y);
   doc.strokeColor(C.border).lineWidth(0.5).moveTo(x, y + 20).lineTo(doc.page.width - 40, y + 20).stroke();
 }
 
-function drawFlag(doc, x, y, width, flagText, color) {
+function drawFlag(
+  doc: Doc,
+  x: number,
+  y: number,
+  width: number,
+  flagText: string | { title?: string; detail?: string; action?: string },
+  color: string,
+) {
   const isString = typeof flagText === 'string';
   const title = isString ? '' : (flagText.title || '');
   const detail = isString ? flagText : (flagText.detail || '');
@@ -470,7 +483,18 @@ function drawFlag(doc, x, y, width, flagText, color) {
   return y + boxH + 6;
 }
 
-function drawMarketBar(doc, x, y, width, label, subtitle, reference, low, high, userPrice) {
+function drawMarketBar(
+  doc: Doc,
+  x: number,
+  y: number,
+  width: number,
+  label: string,
+  subtitle: string,
+  reference: number,
+  low: number,
+  high: number,
+  userPrice: number,
+) {
   // Color based on user price vs reference
   const ratio = userPrice / reference;
   let color = C.green;
@@ -516,7 +540,7 @@ function drawMarketBar(doc, x, y, width, label, subtitle, reference, low, high, 
 /**
  * Ensure there's enough space for upcoming content, adding a new page if not.
  */
-function ensureSpace(doc, y, neededHeight) {
+function ensureSpace(doc: Doc, y: number, neededHeight: number) {
   const pageBottom = doc.page.height - 60;
   if (y + neededHeight > pageBottom) {
     doc.addPage();

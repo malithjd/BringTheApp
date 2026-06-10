@@ -46,7 +46,7 @@ const DOC_FEE_CAPS = {
   WA: { cap: 200, law: 'RCW §46.17.025(1)(b)' },
 };
 
-async function fetchTaxRate(zip) {
+async function fetchTaxRate(zip: string) {
   const apiKey = process.env.API_NINJAS_KEY;
   if (!apiKey) return null;
 
@@ -55,7 +55,7 @@ async function fetchTaxRate(zip) {
       headers: { 'X-Api-Key': apiKey },
     });
     if (!res.ok) return null;
-    const data = await res.json();
+    const data = await res.json() as Array<Record<string, string>>;
     return data?.[0] || null;
   } catch {
     return null;

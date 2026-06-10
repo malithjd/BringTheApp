@@ -5,9 +5,9 @@
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:client": "cd client && npm run dev",
-    "dev:server": "cd server && node --watch index.js",
-    "build": "cd client && npm install --include=dev && npm run build && cd ../server && npm install",
-    "start": "NODE_ENV=production node server/index.js",
+    "dev:server": "cd server && npm run dev",
+    "build": "cd client && npm install --include=dev && npm run build && cd ../server && npm install && npm run build",
+    "start": "NODE_ENV=production node server/dist/index.js",
     "install:all": "npm install && cd client && npm install && cd ../server && npm install",
     "postinstall": "cd client && npm install && cd ../server && npm install"
   },

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { errMsg } from '../lib/errors.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
@@ -10,8 +11,8 @@ const taxRates = JSON.parse(readFileSync(path.join(__dirname, '../data/tax-rates
 const taxLaws = JSON.parse(readFileSync(path.join(__dirname, '../data/tax-laws.json'), 'utf-8'));
 
 // ZIP code to state mapping using USPS ranges
-function zipToState(zip) {
-  const z = parseInt(zip, 10);
+function zipToState(zip: number | string): string | null {
+  const z = parseInt(String(zip), 10);
   if (z >= 10 && z <= 27) return 'MA';
   if (z >= 28 && z <= 29) return 'RI';
   if (z >= 30 && z <= 38) return 'NH';
@@ -67,7 +68,7 @@ function zipToState(zip) {
 }
 
 // Check if NYC ZIP
-function isNYC(zip) {
+function isNYC(zip: string): boolean {
   const z = parseInt(zip, 10);
   return (z >= 100 && z <= 104) || (z >= 110 && z <= 119);
 }
@@ -95,9 +96,11 @@ router.get('/:zip', async (req, res) => {
         { headers: { 'X-Api-Key': process.env.API_NINJAS_KEY } }
       );
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json() as Array<{
+          total_rate: string; state_rate: string; county_rate: string; city_rate: string;
+        }>;
         if (data && data.length > 0) {
-          const t = data[0];
+          const t = data[0]!;
           return res.json({
             state,
             zip,
@@ -111,7 +114,7 @@ router.get('/:zip', async (req, res) => {
         }
       }
     } catch (err) {
-      console.error('API Ninjas error, falling back to local data:', err.message);
+      console.error('API Ninjas error, falling back to local data:', errMsg(err));
     }
   }
 

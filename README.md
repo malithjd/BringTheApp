@@ -18,9 +18,10 @@ A mobile-first web app that helps average car buyers evaluate dealership offers.
 
 | Layer | Technology | Details |
 |-------|-----------|---------|
+| **Language** | TypeScript (strict) | Server fully typed; client migrating (`allowJs`); shared API contract in `shared/types.d.ts` |
 | **Frontend** | React 19 + Vite 8 | SPA with mobile-first responsive design, hand-rolled history router |
 | **Styling** | Tailwind CSS 4 | Dark theme, custom design tokens |
-| **Backend** | Express 5 + Node.js | REST API; deal reference data lives in bundled JSON files (no DB for deal data) |
+| **Backend** | Express 5 + Node.js (TS/NodeNext) | REST API; deal reference data lives in bundled JSON files (no DB for deal data) |
 | **Auth & saved reports** | Supabase | Email/password auth + per-user saved reports (Postgres + RLS) |
 | **AI / OCR** | Gemini, OpenAI, Claude | Multi-provider vision AI for document extraction |
 | **Market data** | Auto.dev | Live listings, market average, and vehicle photos (gated by `PAID_FEATURES`) |
@@ -91,8 +92,12 @@ BringTheApp/
 │       ├── tax-rates.json           # State + avg local tax rates, keyed by state code
 │       └── tax-laws.json            # Legal citations for vehicle sales tax, keyed by state code
 │
+├── shared/
+│   └── types.d.ts                   # Shared API contract types (client + server)
 └── render.yaml                      # One-click Render deployment blueprint
 ```
+
+> The server is written in TypeScript (`.ts`, NodeNext) and compiled to `server/dist/`; the client is migrating to TypeScript incrementally (`allowJs` keeps `.jsx`/`.js` building). The tree above shows current client filenames.
 
 > Deeper references: [`DESIGN.md`](./DESIGN.md) (architecture & UX rationale), [`PRODUCT.md`](./PRODUCT.md) (product spec), and [`.claude/rules/`](./.claude/rules) (path-scoped conventions for AI assistants).
 
@@ -107,7 +112,7 @@ BringTheApp/
 | Loan Term | 8 | Shorter terms score higher |
 | Down Payment | 7 | Equity position (down payment + trade-in) |
 
-- **Consistency invariant:** the score, flags, and negotiation scripts are all derived from one unified market reference (`marketRef` — live listings when available, calculated MSRP/depreciation otherwise). Keep them in sync (`server/routes/analyze.js`).
+- **Consistency invariant:** the score, flags, and negotiation scripts are all derived from one unified market reference (`marketRef` — live listings when available, calculated MSRP/depreciation otherwise). Keep them in sync (`server/routes/analyze.ts`).
 - **Cash deals** (no financing) get full marks for APR and Loan Term
 - **Extreme overpay caps** limit total score when price is >1.3x / >1.5x / >2x market
 - **Abnormal fee flags** catch registration and title fees that exceed 2x the state typical range

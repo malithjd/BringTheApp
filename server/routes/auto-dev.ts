@@ -1,7 +1,38 @@
 import { Router } from 'express';
 import { isEnabled } from '../config.js';
+import { errMsg } from '../lib/errors.js';
+import type { MarketListings } from '../../shared/types.js';
 
 const router = Router();
+
+interface Coords { lat: number; lng: number; }
+
+interface RetailListing {
+  price?: number;
+  miles?: number;
+  dealer?: string;
+  dealerName?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  primaryImage?: string;
+  photoUrl?: string;
+  primaryPhotoUrl?: string;
+  vdp?: string;
+  listingUrl?: string;
+  url?: string;
+}
+
+interface AutoDevListing {
+  retailListing?: RetailListing;
+  location?: number[];
+  vehicle?: { trim?: string; baseMsrp?: number };
+}
+
+interface AutoDevResponse {
+  data?: AutoDevListing[];
+  listings?: AutoDevListing[];
+}
 
 const AUTO_DEV_BASE = 'https://api.auto.dev';
 // Read lazily — dotenv.config() in index.js runs after ESM imports resolve
@@ -10,12 +41,14 @@ function getApiKey() { return process.env.AUTO_DEV_API_KEY; }
 // ---------------------------------------------------------------------------
 // Simple TTL cache (30 min default)
 // ---------------------------------------------------------------------------
-class TTLCache {
+class TTLCache<T = unknown> {
+  ttl: number;
+  store: Map<string, { value: T; expires: number }>;
   constructor(ttlMs = 30 * 60 * 1000) {
     this.ttl = ttlMs;
     this.store = new Map();
   }
-  get(key) {
+  get(key: string): T | null {
     const entry = this.store.get(key);
     if (!entry) return null;
     if (Date.now() > entry.expires) {
@@ -24,7 +57,7 @@ class TTLCache {
     }
     return entry.value;
   }
-  set(key, value) {
+  set(key: string, value: T) {
     this.store.set(key, { value, expires: Date.now() + this.ttl });
   }
 }
@@ -35,6 +68,8 @@ const cache = new TTLCache();
 // Rate limiter — 5 req/sec sliding window for Auto.dev
 // ---------------------------------------------------------------------------
 class RateLimiter {
+  max: number;
+  timestamps: number[];
   constructor(maxPerSec = 5) {
     this.max = maxPerSec;
     this.timestamps = [];
@@ -55,7 +90,7 @@ const limiter = new RateLimiter(5);
 // ---------------------------------------------------------------------------
 // Auto.dev fetch helper
 // ---------------------------------------------------------------------------
-async function autoDevFetch(path, params = {}) {
+async function autoDevFetch(path: string, params: Record<string, unknown> = {}): Promise<unknown> {
   if (!getApiKey()) return null;
   await limiter.acquire();
 
@@ -80,7 +115,7 @@ async function autoDevFetch(path, params = {}) {
     return res.json();
   } catch (err) {
     clearTimeout(timeout);
-    console.warn(`Auto.dev fetch failed: ${err.message}`);
+    console.warn(`Auto.dev fetch failed: ${errMsg(err)}`);
     return null;
   }
 }
@@ -88,7 +123,7 @@ async function autoDevFetch(path, params = {}) {
 // ---------------------------------------------------------------------------
 // Helper: bucket mileage to nearest 10k for cache key
 // ---------------------------------------------------------------------------
-function mileageBucket(m) {
+function mileageBucket(m: number | string | null | undefined) {
   if (!m) return 'any';
   return String(Math.round(Number(m) / 10000) * 10000);
 }
@@ -96,16 +131,16 @@ function mileageBucket(m) {
 // ---------------------------------------------------------------------------
 // ZIP → coordinates resolver (via free Zippopotam.us API, cached)
 // ---------------------------------------------------------------------------
-const zipCache = new TTLCache(24 * 60 * 60 * 1000); // 24h TTL
+const zipCache = new TTLCache<Coords>(24 * 60 * 60 * 1000); // 24h TTL
 
-async function resolveZipCoords(zip) {
+async function resolveZipCoords(zip: string | null | undefined): Promise<Coords | null> {
   if (!zip || !/^\d{5}$/.test(zip)) return null;
   const cached = zipCache.get(zip);
   if (cached) return cached;
   try {
     const res = await fetch(`https://api.zippopotam.us/us/${zip}`);
     if (!res.ok) return null;
-    const data = await res.json();
+    const data = await res.json() as { places?: Array<{ latitude: string; longitude: string }> };
     const place = data?.places?.[0];
     if (!place) return null;
     const coords = { lat: parseFloat(place.latitude), lng: parseFloat(place.longitude) };
@@ -117,10 +152,12 @@ async function resolveZipCoords(zip) {
 }
 
 // Haversine distance in miles
-function haversineMiles(lat1, lng1, lat2, lng2) {
+function haversineMiles(
+  lat1: number | null, lng1: number | null, lat2: number | null, lng2: number | null,
+): number | null {
   if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) return null;
   const R = 3958.8;
-  const toRad = d => (d * Math.PI) / 180;
+  const toRad = (d: number) => (d * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
   const dLng = toRad(lng2 - lng1);
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
@@ -132,13 +169,19 @@ function haversineMiles(lat1, lng1, lat2, lng2) {
 // Core: fetchMarketListings — reusable by routes AND analyze.js
 // Returns null if disabled/unconfigured. Returns result object otherwise.
 // ---------------------------------------------------------------------------
-export async function fetchMarketListings(year, make, model, mileage, userZip) {
+export async function fetchMarketListings(
+  year: number | string,
+  make: string,
+  model: string,
+  mileage?: number | string | null,
+  userZip?: string | null,
+): Promise<MarketListings> {
   if (!isEnabled('marketListings') || !getApiKey()) {
     return { enabled: false, reason: !getApiKey() ? 'not_configured' : 'disabled' };
   }
 
   const cacheKey = `listings-${year}-${make}-${model}-${mileageBucket(mileage)}-${userZip || 'none'}`;
-  const cached = cache.get(cacheKey);
+  const cached = cache.get(cacheKey) as MarketListings | null;
   if (cached) return cached;
 
   // Resolve user location for distance calculation
@@ -158,7 +201,7 @@ export async function fetchMarketListings(year, make, model, mileage, userZip) {
       'vehicle.model': model,
       'retailListing.miles': milesParam,
       limit: 50,
-    });
+    }) as AutoDevResponse | null;
 
     // Auto.dev response: { data: [...listings], links: {...}, api: {...} }
     const allListings = data?.data || data?.listings || [];
@@ -182,9 +225,9 @@ export async function fetchMarketListings(year, make, model, mileage, userZip) {
       const url = l.retailListing.vdp || l.retailListing.listingUrl || l.retailListing.url || '';
       return !BLOCKED_URL_PATTERNS.some(pat => pat.test(url));
     });
-    const withPrices = listings.filter(l => l.retailListing?.price > 0);
+    const withPrices = listings.filter(l => (l.retailListing?.price ?? 0) > 0);
     const prices = withPrices.length > 0
-      ? withPrices.map(l => l.retailListing.price).sort((a, b) => a - b)
+      ? withPrices.map(l => l.retailListing?.price ?? 0).sort((a, b) => a - b)
       : null;
 
     const avg = prices ? Math.round(prices.reduce((s, p) => s + p, 0) / prices.length) : null;
@@ -196,7 +239,7 @@ export async function fetchMarketListings(year, make, model, mileage, userZip) {
 
     // Map all listings to client-friendly shape (includes distance from user)
     const allListingsMapped = listings.map(l => {
-      const rl = l.retailListing || {};
+      const rl: RetailListing = l.retailListing ?? {};
       const lat = Array.isArray(l.location) ? l.location[1] : null;
       const lng = Array.isArray(l.location) ? l.location[0] : null;
       const distance = userCoords && lat != null && lng != null
@@ -233,7 +276,7 @@ export async function fetchMarketListings(year, make, model, mileage, userZip) {
     cache.set(cacheKey, result);
     return result;
   } catch (err) {
-    console.error('Market listings error:', err.message);
+    console.error('Market listings error:', errMsg(err));
     return { enabled: true, avgPrice: null, listingCount: 0, sampleListings: [] };
   }
 }
@@ -246,7 +289,11 @@ router.get('/listings', async (req, res) => {
   if (!year || !make || !model) {
     return res.status(400).json({ error: 'year, make, model required' });
   }
-  const result = await fetchMarketListings(year, make, model, mileage, zip);
+  const result = await fetchMarketListings(
+    String(year), String(make), String(model),
+    mileage != null ? String(mileage) : undefined,
+    zip != null ? String(zip) : undefined,
+  );
   return res.json(result);
 });
 
@@ -269,7 +316,7 @@ router.get('/photo', async (req, res) => {
   if (cached) return res.json(cached);
 
   try {
-    const params = {
+    const params: Record<string, unknown> = {
       'vehicle.year': year,
       'vehicle.make': make,
       'vehicle.model': model,
@@ -277,9 +324,9 @@ router.get('/photo', async (req, res) => {
     };
     if (trim) params['vehicle.trim'] = trim;
 
-    const data = await autoDevFetch('/listings', params);
+    const data = await autoDevFetch('/listings', params) as AutoDevResponse | null;
 
-    let photoUrl = null;
+    let photoUrl: string | null = null;
     const photoListings = data?.data || data?.listings || [];
     for (const l of photoListings) {
       const url = l.retailListing?.primaryImage || l.retailListing?.photoUrl || l.retailListing?.primaryPhotoUrl;
@@ -293,7 +340,7 @@ router.get('/photo', async (req, res) => {
     cache.set(cacheKey, result);
     return res.json(result);
   } catch (err) {
-    console.error('Vehicle photo error:', err.message);
+    console.error('Vehicle photo error:', errMsg(err));
     return res.json({ enabled: true, photoUrl: null });
   }
 });
