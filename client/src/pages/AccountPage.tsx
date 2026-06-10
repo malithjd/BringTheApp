@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 
-function Section({ title, children }) {
+type ResetStatus = 'loading' | 'success' | { error: string } | null;
+type DeleteStep = null | 'confirm' | 'loading' | 'done';
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="bg-surface border border-border rounded-2xl p-6">
       <h2 className="text-sm font-semibold text-text2 uppercase tracking-widest mb-5">{title}</h2>
@@ -11,7 +14,7 @@ function Section({ title, children }) {
   );
 }
 
-function Field({ label, value }) {
+function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
       <p className="text-xs text-text2 mb-1">{label}</p>
@@ -20,19 +23,21 @@ function Field({ label, value }) {
   );
 }
 
-export default function AccountPage({ onGoHome }) {
+export default function AccountPage({ onGoHome }: { onGoHome: () => void }) {
   const { user, signOut, resetPassword, clearPasswordRecovery, passwordRecovery } = useAuth();
 
   // Password reset form (shown when arriving via recovery email)
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [resetStatus, setResetStatus] = useState(null);
+  const [resetStatus, setResetStatus] = useState<ResetStatus>(null);
 
   // Delete account flow
-  const [deleteStep, setDeleteStep] = useState(null); // null | 'confirm' | 'loading' | 'done'
-  const [deleteError, setDeleteError] = useState(null);
+  const [deleteStep, setDeleteStep] = useState<DeleteStep>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const handleResetPassword = async (e) => {
+  const resetError = resetStatus && typeof resetStatus === 'object' ? resetStatus.error : null;
+
+  const handleResetPassword = async (e: FormEvent) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
       setResetStatus({ error: 'Passwords do not match' });
@@ -52,18 +57,19 @@ export default function AccountPage({ onGoHome }) {
     setDeleteStep('loading');
     setDeleteError(null);
     try {
+      if (!supabase) throw new Error('Supabase is not configured');
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/account/delete', {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: { Authorization: `Bearer ${session?.access_token ?? ''}` },
       });
-      const json = await res.json();
+      const json = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(json.error || 'Deletion failed');
       setDeleteStep('done');
       await signOut();
       onGoHome();
     } catch (err) {
-      setDeleteError(err.message);
+      setDeleteError(err instanceof Error ? err.message : 'Deletion failed');
       setDeleteStep('confirm');
     }
   };
@@ -113,8 +119,8 @@ export default function AccountPage({ onGoHome }) {
                 placeholder="Confirm new password"
                 className="w-full px-3 py-2.5 bg-surface2 border border-border rounded-lg text-sm text-text placeholder:text-text2 focus:outline-none focus:border-accent transition-colors"
               />
-              {resetStatus?.error && (
-                <p className="text-red text-xs">{resetStatus.error}</p>
+              {resetError && (
+                <p className="text-red text-xs">{resetError}</p>
               )}
               <button
                 type="submit"

@@ -8,21 +8,36 @@ import NegotiationTips from '../components/NegotiationTips';
 import EmailReportDialog from '../components/EmailReportDialog';
 import { getVehiclePhoto, generatePdfReport } from '../lib/api';
 import { saveReport, MAX_REPORTS } from '../lib/reports';
+import type { User } from '@supabase/supabase-js';
+import type { DealAnalysisResponse, FormState } from '../types';
 
 /** Pause so React can paint the loading UI before blocking work starts. */
-const yieldToPaint = () => new Promise(resolve => {
-  requestAnimationFrame(() => requestAnimationFrame(resolve));
+const yieldToPaint = () => new Promise<void>(resolve => {
+  requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
 });
 
-export default function ResultsView({ dealData, result, onEditDeal, onNewDeal, onSaveReport, user, savedCount }) {
-  const [exportStatus, setExportStatus] = useState(null); // null | 'preparing' | 'rendering' | 'saving' | 'done' | 'error'
+type ExportStatus = null | 'preparing' | 'rendering' | 'saving' | 'done' | 'error';
+type SaveStatus = null | 'naming' | 'saving' | 'saved' | 'error';
+
+interface ResultsViewProps {
+  dealData: FormState | null;
+  result: DealAnalysisResponse | null;
+  onEditDeal: () => void;
+  onNewDeal: () => void;
+  onSaveReport?: (action: string) => void;
+  user: User | null | undefined;
+  savedCount: number;
+}
+
+export default function ResultsView({ dealData, result, onEditDeal, onNewDeal, onSaveReport, user, savedCount }: ResultsViewProps) {
+  const [exportStatus, setExportStatus] = useState<ExportStatus>(null);
   const [exportMessage, setExportMessage] = useState('');
-  const [photoUrl, setPhotoUrl] = useState(null);
-  const [saveStatus, setSaveStatus] = useState(null); // null | 'naming' | 'saving' | 'saved' | 'error'
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>(null);
   const [saveName, setSaveName] = useState('');
   const [saveError, setSaveError] = useState('');
   const [showEmail, setShowEmail] = useState(false);
-  const reportRef = useRef(null);
+  const reportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!result?.vehicle) return;
@@ -49,14 +64,14 @@ export default function ResultsView({ dealData, result, onEditDeal, onNewDeal, o
       await yieldToPaint();
 
       // 30-second timeout guard
-      const timeout = new Promise((_, reject) =>
+      const timeout = new Promise<Blob>((_, reject) =>
         setTimeout(() => reject(new Error('Server took too long to respond. Please try again.')), 30000)
       );
 
       const blob = await Promise.race([generatePdfReport(result), timeout]);
 
       // Trigger browser download
-      const v = result.vehicle || {};
+      const v = result.vehicle;
       const filename = `BringTheApp-${v.year || ''}-${v.make || ''}-${v.model || ''}-${result.score}.pdf`
         .replace(/\s+/g, '-')
         .replace(/--+/g, '-');
@@ -77,7 +92,7 @@ export default function ResultsView({ dealData, result, onEditDeal, onNewDeal, o
     } catch (err) {
       console.error('PDF export failed:', err);
       setExportStatus('error');
-      setExportMessage(err.message || 'PDF export failed. Please try again.');
+      setExportMessage(err instanceof Error ? err.message : 'PDF export failed. Please try again.');
       setTimeout(() => setExportStatus(null), 4000);
     }
   };
@@ -88,10 +103,10 @@ export default function ResultsView({ dealData, result, onEditDeal, onNewDeal, o
     setShowEmail(true);
   };
 
-  const isExporting = exportStatus && exportStatus !== 'done' && exportStatus !== 'error';
+  const isExporting = !!(exportStatus && exportStatus !== 'done' && exportStatus !== 'error');
 
   const autoName = () => {
-    const v = result?.vehicle ?? {};
+    const v = result.vehicle;
     return [v.year, v.make, v.model].filter(Boolean).join(' ') || 'My Deal';
   };
 
@@ -110,7 +125,7 @@ export default function ResultsView({ dealData, result, onEditDeal, onNewDeal, o
       onSaveReport?.('saved');
       setTimeout(() => setSaveStatus(null), 2500);
     } catch (e) {
-      setSaveError(e.message);
+      setSaveError(e instanceof Error ? e.message : 'Failed to save report');
       setSaveStatus('error');
       setTimeout(() => setSaveStatus(null), 3000);
     }

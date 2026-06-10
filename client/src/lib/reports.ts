@@ -1,18 +1,25 @@
 import { supabase } from './supabase';
+import type { DealAnalysisResponse, FormState, SavedReport } from '../types';
 
 export const MAX_REPORTS = 5;
 
-export async function fetchReports() {
+export async function fetchReports(): Promise<SavedReport[]> {
   if (!supabase) return [];
   const { data, error } = await supabase
     .from('reports')
     .select('*')
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []) as SavedReport[];
 }
 
-export async function saveReport({ name, dealData, result }) {
+interface SaveReportArgs {
+  name: string;
+  dealData: FormState | null;
+  result: DealAnalysisResponse;
+}
+
+export async function saveReport({ name, dealData, result }: SaveReportArgs): Promise<SavedReport> {
   if (!supabase) throw new Error('Supabase not configured');
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -30,10 +37,10 @@ export async function saveReport({ name, dealData, result }) {
     .select()
     .single();
   if (error) throw error;
-  return data;
+  return data as SavedReport;
 }
 
-export async function deleteReport(id) {
+export async function deleteReport(id: string): Promise<void> {
   if (!supabase) throw new Error('Supabase not configured');
   const { error } = await supabase.from('reports').delete().eq('id', id);
   if (error) throw error;

@@ -1,11 +1,14 @@
 import { useState } from 'react';
+import type { NegotiationScript } from '../types';
 
-export default function NegotiationTips({ scripts }) {
-  const [copyState, setCopyState] = useState({}); // { [index]: 'copied' | 'error' }
+type CopyState = Record<number, 'copied' | 'error'>;
+
+export default function NegotiationTips({ scripts }: { scripts: NegotiationScript[] }) {
+  const [copyState, setCopyState] = useState<CopyState>({});
 
   if (!scripts || scripts.length === 0) return null;
 
-  const handleCopy = async (script, i) => {
+  const handleCopy = async (script: string, i: number) => {
     try {
       await navigator.clipboard.writeText(script.replace(/^"|"$/g, ''));
       setCopyState(prev => ({ ...prev, [i]: 'copied' }));

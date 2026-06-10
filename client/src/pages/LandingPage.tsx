@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import alexConfused from '../assets/alex-confused.png';
 
 // ── Scroll-reveal hook (IntersectionObserver, fires once) ─────────────
-function useInView(threshold = 0.12) {
-  const ref = useRef(null);
+function useInView(threshold = 0.12): [React.RefObject<HTMLDivElement | null>, boolean] {
+  const ref = useRef<HTMLDivElement>(null);
   const [inView, setInView] = useState(false);
   const thresholdRef = useRef(threshold);
   useEffect(() => {
@@ -20,7 +20,15 @@ function useInView(threshold = 0.12) {
 }
 
 // ── Count-up number animation (tied to visibility) ────────────────────
-function CountUp({ to, prefix = '', suffix = '', active, duration = 1400 }) {
+interface CountUpProps {
+  to: number;
+  prefix?: string;
+  suffix?: string;
+  active: boolean;
+  duration?: number;
+}
+
+function CountUp({ to, prefix = '', suffix = '', active, duration = 1400 }: CountUpProps) {
   const [val, setVal] = useState(0);
   useEffect(() => {
     if (!active) return;
@@ -29,8 +37,8 @@ function CountUp({ to, prefix = '', suffix = '', active, duration = 1400 }) {
       return;
     }
     const t0 = performance.now();
-    const ease = t => 1 - Math.pow(1 - t, 3);
-    const tick = now => {
+    const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+    const tick = (now: number) => {
       const p = Math.min((now - t0) / duration, 1);
       setVal(Math.round(to * ease(p)));
       if (p < 1) requestAnimationFrame(tick);
@@ -38,7 +46,7 @@ function CountUp({ to, prefix = '', suffix = '', active, duration = 1400 }) {
     requestAnimationFrame(tick);
   }, [active, to, duration]);
 
-  const fmt = n => {
+  const fmt = (n: number) => {
     if (prefix === '$' && n >= 1000) return `$${n.toLocaleString('en-US')}`;
     return `${prefix}${n}${suffix}`;
   };
@@ -46,7 +54,7 @@ function CountUp({ to, prefix = '', suffix = '', active, duration = 1400 }) {
 }
 
 // ── Scroll-reveal wrapper ─────────────────────────────────────────────
-function Reveal({ children, delay = 0, className = '' }) {
+function Reveal({ children, delay = 0, className = '' }: { children: ReactNode; delay?: number; className?: string }) {
   const [ref, inView] = useInView();
   const reduced = typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -67,7 +75,7 @@ function Reveal({ children, delay = 0, className = '' }) {
 }
 
 // ── Stat with count-up (self-triggers on scroll) ──────────────────────
-function ScrollStat({ to, prefix = '', suffix = '', label }) {
+function ScrollStat({ to, prefix = '', suffix = '', label }: { to: number; prefix?: string; suffix?: string; label: string }) {
   const [ref, inView] = useInView(0.4);
   return (
     <div ref={ref} className="text-center">
@@ -92,7 +100,7 @@ function PrivacyBadge() {
 }
 
 // ── CTA arrow button ──────────────────────────────────────────────────
-function CTAButton({ onClick, size = 'default', label = 'Check my deal — it\'s free' }) {
+function CTAButton({ onClick, size = 'default', label = 'Check my deal — it\'s free' }: { onClick: () => void; size?: string; label?: string }) {
   const cls = size === 'lg'
     ? 'px-8 py-4 text-base w-full sm:w-auto justify-center'
     : 'px-7 py-3.5 text-sm w-full sm:w-auto justify-center sm:justify-start';
@@ -283,7 +291,7 @@ const CAPABILITIES = [
 ];
 
 // ═══════════════════════════════════════════════════════════════════════
-export default function LandingPage({ onGetStarted }) {
+export default function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
   const [showSticky, setShowSticky] = useState(false);
 
   useEffect(() => {
@@ -598,11 +606,11 @@ const CAP_REDUCED     = typeof window !== 'undefined' && window.matchMedia('(pre
 function CapabilitySection() {
   const [active, setActive] = useState(0);
   const [paused, setPaused]  = useState(false);
-  const resumeRef = useRef(null);
-  const touchXRef = useRef(null);
+  const resumeRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const touchXRef = useRef<number | null>(null);
   const [deckRef, deckInView] = useInView(0.15);
 
-  const goTo = useCallback((idx) => {
+  const goTo = useCallback((idx: number) => {
     const next = ((idx % N) + N) % N;
     setActive(next);
     setPaused(true);
@@ -618,14 +626,14 @@ function CapabilitySection() {
 
   useEffect(() => () => clearTimeout(resumeRef.current), []);
 
-  const onTouchStart = (e) => { touchXRef.current = e.touches[0].clientX; };
-  const onTouchEnd   = (e) => {
+  const onTouchStart = (e: React.TouchEvent) => { touchXRef.current = e.touches[0].clientX; };
+  const onTouchEnd   = (e: React.TouchEvent) => {
     if (touchXRef.current === null) return;
     const dx = touchXRef.current - e.changedTouches[0].clientX;
-    if (Math.abs(dx) > 40) dx > 0 ? goTo(active + 1) : goTo(active - 1);
+    if (Math.abs(dx) > 40) { if (dx > 0) goTo(active + 1); else goTo(active - 1); }
     touchXRef.current = null;
   };
-  const onKeyDown    = (e) => {
+  const onKeyDown    = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowLeft')  { e.preventDefault(); goTo(active - 1); }
     if (e.key === 'ArrowRight') { e.preventDefault(); goTo(active + 1); }
   };
@@ -800,7 +808,7 @@ function CapabilitySection() {
   );
 }
 
-function CapabilityCard({ cap, active }) {
+function CapabilityCard({ cap, active }: { cap: (typeof CAPABILITIES)[number]; active: boolean }) {
   const { title, tag, stat, statColor, statLabel, detail, rows, icon } = cap;
   return (
     <div
@@ -878,7 +886,7 @@ function HeroStats() {
   );
 }
 
-function FactorRow({ to, suffix, label }) {
+function FactorRow({ to, suffix, label }: { to: number; suffix?: string; label: string }) {
   const [ref, inView] = useInView(0.4);
   return (
     <div ref={ref} className="flex items-center gap-5 p-5 rounded-xl bg-card-dark border border-ink-border">
@@ -902,7 +910,7 @@ const SORA  = { fontFamily: 'Sora, system-ui, sans-serif' };
 const SERIF = { fontFamily: 'DM Serif Display, Georgia, serif' };
 
 // ── Shared phone app-header row ───────────────────────────────────────
-function PhoneHeader({ right }) {
+function PhoneHeader({ right }: { right: ReactNode }) {
   return (
     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 16px 8px' }}>
       <span style={{ ...SERIF, fontSize:13, color:'#FAFAF7' }}>
@@ -914,7 +922,7 @@ function PhoneHeader({ right }) {
 }
 
 // ── Screen 1: Deal Score ──────────────────────────────────────────────
-function PhoneScreenScore({ sectionInView }) {
+function PhoneScreenScore({ sectionInView }: { sectionInView: boolean }) {
   const [val, setVal] = useState(0);
   const radius = 50, circ = 2 * Math.PI * radius;
 
@@ -925,8 +933,8 @@ function PhoneScreenScore({ sectionInView }) {
       return;
     }
     const t0 = performance.now();
-    const ease = t => 1 - Math.pow(1 - t, 3);
-    const tick = now => {
+    const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+    const tick = (now: number) => {
       const p = Math.min((now - t0) / 1200, 1);
       setVal(Math.round(82 * ease(p)));
       if (p < 1) requestAnimationFrame(tick);
@@ -1070,12 +1078,12 @@ function PhoneScreenMarket() {
 function PhoneCarousel() {
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
-  const touchX   = useRef(null);
-  const resumeId = useRef(null);
+  const touchX   = useRef<number | null>(null);
+  const resumeId = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const reduced  = useRef(typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const [sectionRef, sectionInView] = useInView(0.18);
 
-  const goTo = useCallback((idx) => {
+  const goTo = useCallback((idx: number) => {
     setActive(idx);
     setPaused(true);
     clearTimeout(resumeId.current);
@@ -1093,15 +1101,15 @@ function PhoneCarousel() {
   const prev = () => goTo((active - 1 + PHONE_LABELS.length) % PHONE_LABELS.length);
   const next = () => goTo((active + 1) % PHONE_LABELS.length);
 
-  const onTouchStart = (e) => { touchX.current = e.touches[0].clientX; };
-  const onTouchEnd   = (e) => {
+  const onTouchStart = (e: React.TouchEvent) => { touchX.current = e.touches[0].clientX; };
+  const onTouchEnd   = (e: React.TouchEvent) => {
     if (touchX.current === null) return;
     const dx = touchX.current - e.changedTouches[0].clientX;
-    if (Math.abs(dx) > 40) dx > 0 ? next() : prev();
+    if (Math.abs(dx) > 40) { if (dx > 0) next(); else prev(); }
     touchX.current = null;
   };
 
-  const onKeyDown = (e) => {
+  const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowLeft')  { e.preventDefault(); prev(); }
     if (e.key === 'ArrowRight') { e.preventDefault(); next(); }
   };

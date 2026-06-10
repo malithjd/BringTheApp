@@ -1,7 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { fetchReports, deleteReport, MAX_REPORTS } from '../lib/reports';
+import type { SavedReport } from '../types';
 
-function timeAgo(dateStr) {
+interface SavedReportsProps {
+  onLoad: (report: SavedReport) => void;
+  onCompare: (a: SavedReport, b: SavedReport) => void;
+  onClose: () => void;
+}
+
+function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 60) return `${mins}m ago`;
@@ -10,7 +17,7 @@ function timeAgo(dateStr) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function ScoreBadge({ score }) {
+function ScoreBadge({ score }: { score: number }) {
   const color = score >= 70 ? 'text-green bg-green/10 border-green/20'
     : score >= 45 ? 'text-amber bg-amber/10 border-amber/20'
     : 'text-red bg-red/10 border-red/20';
@@ -21,29 +28,29 @@ function ScoreBadge({ score }) {
   );
 }
 
-export default function SavedReports({ onLoad, onCompare, onClose }) {
-  const [reports, setReports] = useState([]);
+export default function SavedReports({ onLoad, onCompare, onClose }: SavedReportsProps) {
+  const [reports, setReports] = useState<SavedReport[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [deleting, setDeleting] = useState(null);
-  const [selected, setSelected] = useState([]); // for compare mode (max 2)
+  const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string[]>([]); // for compare mode (max 2)
 
-  const modalRef = useRef(null);
-  const previousFocusRef = useRef(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    previousFocusRef.current = document.activeElement;
-    const focusable = modalRef.current?.querySelector('button:not([disabled]), input:not([disabled])');
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    const focusable = modalRef.current?.querySelector<HTMLElement>('button:not([disabled]), input:not([disabled])');
     focusable?.focus();
     return () => { previousFocusRef.current?.focus(); };
   }, []);
 
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { onClose(); return; }
       if (e.key !== 'Tab') return;
       const focusable = Array.from(
-        modalRef.current?.querySelectorAll(
+        modalRef.current?.querySelectorAll<HTMLElement>(
           'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
         ) ?? []
       );
@@ -63,24 +70,24 @@ export default function SavedReports({ onLoad, onCompare, onClose }) {
   useEffect(() => {
     fetchReports()
       .then(setReports)
-      .catch(e => setError(e.message))
+      .catch(e => setError(e instanceof Error ? e.message : 'Failed to load reports'))
       .finally(() => setLoading(false));
   }, []);
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id: string) => {
     setDeleting(id);
     try {
       await deleteReport(id);
       setReports(r => r.filter(x => x.id !== id));
       setSelected(s => s.filter(x => x !== id));
     } catch (e) {
-      setError(e.message);
+      setError(e instanceof Error ? e.message : 'Failed to delete report');
     } finally {
       setDeleting(null);
     }
   };
 
-  const toggleSelect = (id) => {
+  const toggleSelect = (id: string) => {
     setSelected(prev => {
       if (prev.includes(id)) return prev.filter(x => x !== id);
       if (prev.length >= 2) return [prev[1], id]; // replace oldest selection
@@ -91,6 +98,7 @@ export default function SavedReports({ onLoad, onCompare, onClose }) {
   const handleCompare = () => {
     if (selected.length !== 2) return;
     const [a, b] = selected.map(id => reports.find(r => r.id === id));
+    if (!a || !b) return;
     onCompare(a, b);
     onClose();
   };
@@ -161,7 +169,7 @@ export default function SavedReports({ onLoad, onCompare, onClose }) {
           )}
 
           {!loading && reports.map(r => {
-            const v = r.result?.vehicle || {};
+            const v = r.result?.vehicle;
             const isSelected = selected.includes(r.id);
             return (
               <div
@@ -187,7 +195,7 @@ export default function SavedReports({ onLoad, onCompare, onClose }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-text text-sm font-medium truncate">{r.name}</p>
                   <p className="text-text2 text-xs truncate">
-                    {[v.year, v.make, v.model].filter(Boolean).join(' ') || 'Vehicle'} · {timeAgo(r.created_at)}
+                    {[v?.year, v?.make, v?.model].filter(Boolean).join(' ') || 'Vehicle'} · {timeAgo(r.created_at)}
                   </p>
                 </div>
 

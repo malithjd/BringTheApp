@@ -1,31 +1,35 @@
 import { useState } from 'react';
+import type { Numish, SavedReport } from '../types';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
-const fmt = (n, prefix = '') =>
+const fmt = (n: Numish | null | undefined, prefix = '') =>
   n != null && n !== '' ? `${prefix}${Number(n).toLocaleString()}` : '—';
 
-const fmtPct = n => (n != null && n !== '' ? `${n}%` : '—');
+const fmtPct = (n: Numish | null | undefined) => (n != null && n !== '' ? `${n}%` : '—');
 
-function scoreColor(score) {
-  if (score >= 70) return 'var(--color-green)';
-  if (score >= 45) return 'var(--color-amber)';
+function scoreColor(score: number | null | undefined) {
+  const s = score ?? -1;
+  if (s >= 70) return 'var(--color-green)';
+  if (s >= 45) return 'var(--color-amber)';
   return 'var(--color-red)';
 }
 
-function scoreLabel(score) {
-  if (score >= 70) return 'Good Deal';
-  if (score >= 45) return 'Fair Deal';
+function scoreLabel(score: number | null | undefined) {
+  const s = score ?? -1;
+  if (s >= 70) return 'Good Deal';
+  if (s >= 45) return 'Fair Deal';
   return 'Poor Deal';
 }
 
-function scoreLabelClass(score) {
-  if (score >= 70) return 'bg-green/10 text-green border-green/20';
-  if (score >= 45) return 'bg-amber/10 text-amber border-amber/20';
+function scoreLabelClass(score: number | null | undefined) {
+  const s = score ?? -1;
+  if (s >= 70) return 'bg-green/10 text-green border-green/20';
+  if (s >= 45) return 'bg-amber/10 text-amber border-amber/20';
   return 'bg-red/10 text-red border-red/20';
 }
 
 // ─── Mini score gauge ──────────────────────────────────────────────────────────
-function MiniGauge({ score }) {
+function MiniGauge({ score }: { score?: number | null }) {
   const r = 42;
   const circ = 2 * Math.PI * r;
   const offset = circ * (1 - (score ?? 0) / 100);
@@ -47,7 +51,14 @@ function MiniGauge({ score }) {
 }
 
 // ─── Delta badge ──────────────────────────────────────────────────────────────
-function Delta({ a, b, prefix = '', invert = false }) {
+interface DeltaProps {
+  a: Numish | null | undefined;
+  b: Numish | null | undefined;
+  prefix?: string;
+  invert?: boolean;
+}
+
+function Delta({ a, b, prefix = '', invert = false }: DeltaProps) {
   if (a == null || b == null || a === '' || b === '') return <span className="text-text2 text-[10px]">—</span>;
   const diff = Number(a) - Number(b);
   if (Math.abs(diff) < 1) return <span className="text-text2 text-[10px]">same</span>;
@@ -60,42 +71,42 @@ function Delta({ a, b, prefix = '', invert = false }) {
 }
 
 // ─── Single column ────────────────────────────────────────────────────────────
-function Column({ report }) {
-  const r = report?.result ?? {};
-  const d = report?.deal_data ?? {};
-  const v = r?.vehicle ?? {};
-  const entered = r?.entered ?? {};
-  const calculated = r?.calculated ?? {};
+function Column({ report }: { report?: SavedReport | null }) {
+  const r = report?.result;
+  const d = report?.deal_data;
+  const v = r?.vehicle;
+  const entered = r?.entered;
+  const calculated = r?.calculated;
   const factors = r?.factors ?? [];
   const redFlags = r?.flags?.redFlags ?? [];
   const greenFlags = r?.flags?.greenFlags ?? [];
-  const marketRef = r?.market?.reference ?? r?.market?.calculated ?? {};
+  const marketRef = r?.market?.reference ?? r?.market?.calculated;
 
   return (
     <div className="flex flex-col gap-1.5 sm:gap-3">
       {/* Gauge + label */}
       <div className="bg-bg border border-border rounded-xl p-4 text-center">
-        <MiniGauge score={r.score} />
-        <span className={`inline-block mt-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${scoreLabelClass(r.score)}`}>
-          {scoreLabel(r.score)}
+        <MiniGauge score={r?.score} />
+        <span className={`inline-block mt-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${scoreLabelClass(r?.score)}`}>
+          {scoreLabel(r?.score)}
         </span>
         <p className="mt-1.5 text-text2 text-[10px] truncate">
-          {[v.year, v.make, v.model].filter(Boolean).join(' ') || report?.name || 'Vehicle'}
+          {[v?.year, v?.make, v?.model].filter(Boolean).join(' ') || report?.name || 'Vehicle'}
         </p>
       </div>
 
       {/* Key numbers */}
       <div className="bg-bg border border-border rounded-xl p-3 space-y-1.5">
-        {[
-          ['Price', fmt(entered.price ?? d.price, '$')],
-          ['Down', fmt(entered.down ?? d.down, '$')],
-          ['APR', fmtPct(entered.apr ?? d.apr)],
-          ['Term', (entered.term || d.term) ? `${entered.term || d.term} mo` : '—'],
-          ['Monthly', fmt(calculated.monthlyPayment, '$')],
-          ['Total', fmt(calculated.totalCost, '$')],
-          ['Tax', fmt(calculated.taxAmount, '$')],
-          ['Doc Fee', fmt(calculated.docFee, '$')],
-        ].map(([k, val]) => (
+        {([
+          ['Price', fmt(entered?.price ?? d?.price, '$')],
+          ['Down', fmt(entered?.down ?? d?.down, '$')],
+          ['APR', fmtPct(entered?.apr ?? d?.apr)],
+          ['Term', (entered?.term || d?.term) ? `${entered?.term || d?.term} mo` : '—'],
+          ['Monthly', fmt(calculated?.monthlyPayment, '$')],
+          ['Total', fmt(calculated?.totalCost, '$')],
+          ['Tax', fmt(calculated?.taxAmount, '$')],
+          ['Doc Fee', fmt(calculated?.docFee, '$')],
+        ] as Array<[string, string]>).map(([k, val]) => (
           <div key={k} className="flex justify-between text-[11px]">
             <span className="text-text2">{k}</span>
             <span className="text-text tabular-nums font-medium">{val}</span>
@@ -107,11 +118,11 @@ function Column({ report }) {
       <div className="bg-bg border border-border rounded-xl p-3 space-y-1.5">
         <div className="flex justify-between text-[11px]">
           <span className="text-text2">Market Est.</span>
-          <span className="text-text tabular-nums font-medium">{fmt(marketRef.estimated, '$')}</span>
+          <span className="text-text tabular-nums font-medium">{fmt(marketRef?.estimated, '$')}</span>
         </div>
         <div className="flex justify-between text-[11px]">
           <span className="text-text2">Your Price</span>
-          <span className="text-text tabular-nums font-medium">{fmt(entered.price ?? d.price, '$')}</span>
+          <span className="text-text tabular-nums font-medium">{fmt(entered?.price ?? d?.price, '$')}</span>
         </div>
       </div>
 
@@ -152,12 +163,18 @@ function Column({ report }) {
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-export default function CompareView({ reportA, reportB, onBack }) {
+interface CompareViewProps {
+  reportA?: SavedReport | null;
+  reportB?: SavedReport | null;
+  onBack: () => void;
+}
+
+export default function CompareView({ reportA, reportB, onBack }: CompareViewProps) {
   const [swapped, setSwapped] = useState(false);
   const [left, right] = swapped ? [reportB, reportA] : [reportA, reportB];
 
-  const ra = left?.result ?? {};
-  const rb = right?.result ?? {};
+  const ra = left?.result;
+  const rb = right?.result;
 
   // Guard: no reports loaded (e.g. direct URL navigation)
   if (!reportA && !reportB) {
@@ -198,7 +215,7 @@ export default function CompareView({ reportA, reportB, onBack }) {
       </div>
 
       {/* Score delta banner */}
-      {ra.score != null && rb.score != null && (
+      {ra?.score != null && rb?.score != null && (
         <div className="mb-4 p-4 rounded-xl bg-surface border border-border flex items-center gap-3">
           <div className="text-center flex-1 min-w-0">
             <p className="text-2xl font-extrabold tabular-nums" style={{ color: scoreColor(ra.score) }}>
@@ -224,9 +241,9 @@ export default function CompareView({ reportA, reportB, onBack }) {
       {/* Delta chips */}
       <div className="mb-4 grid grid-cols-3 gap-2 text-center text-xs">
         {[
-          { label: 'Price', a: ra.entered?.price, b: rb.entered?.price, prefix: '$', invert: true },
-          { label: 'Monthly', a: ra.calculated?.monthlyPayment, b: rb.calculated?.monthlyPayment, prefix: '$', invert: true },
-          { label: 'Total cost', a: ra.calculated?.totalCost, b: rb.calculated?.totalCost, prefix: '$', invert: true },
+          { label: 'Price', a: ra?.entered?.price, b: rb?.entered?.price, prefix: '$', invert: true },
+          { label: 'Monthly', a: ra?.calculated?.monthlyPayment, b: rb?.calculated?.monthlyPayment, prefix: '$', invert: true },
+          { label: 'Total cost', a: ra?.calculated?.totalCost, b: rb?.calculated?.totalCost, prefix: '$', invert: true },
         ].map(({ label, a, b, prefix, invert }) => (
           <div key={label} className="bg-surface border border-border rounded-xl p-2.5">
             <Delta a={a} b={b} prefix={prefix} invert={invert} />

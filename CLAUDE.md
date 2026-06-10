@@ -21,7 +21,7 @@ Run all from the repo root unless noted.
 
 To run server or client alone: `npm run dev:server` / `npm run dev:client`.
 
-The server is fully TypeScript (NodeNext — relative imports use `.js` extensions even from `.ts` sources) compiled to `server/dist/`. The client is migrating to TypeScript incrementally (`allowJs` keeps `.jsx`/`.js` building). Shared API contract types live in `shared/types.d.ts`. See `.claude/rules/typescript.md`.
+The whole codebase is strict TypeScript (`allowJs: false`). The server is NodeNext — relative imports use `.js` extensions even from `.ts` sources — compiled to `server/dist/`. The client is `.tsx`/`.ts` with bundler resolution (Vite/esbuild transforms; `tsc --noEmit` is the type gate). Shared API contract types live in `shared/types.d.ts`, re-exported for the client via `client/src/types.ts`. See `.claude/rules/typescript.md`.
 
 ## Environment
 
@@ -54,14 +54,15 @@ Reference data is plain JSON in `server/data/` (`vehicle-msrp.json`, `state-fees
 ### Frontend (`client/src/`)
 React 19 + Vite 8 + Tailwind CSS 4 (via `@tailwindcss/vite`, no separate config file). Dark theme with custom design tokens.
 
-**Routing is hand-rolled, not React Router.** `App.jsx` maps pathnames ↔ view names via `PATH_TO_VIEW`, drives navigation with `history.pushState`/`replaceState`, and listens to `popstate`. Page state (`dealData`, `analysisResult`) lives in `AppInner` and is passed down — adding a route means extending the `PATH_TO_VIEW` map and rendering the view.
+**Routing is hand-rolled, not React Router.** `App.tsx` maps pathnames ↔ view names (`type View`) via `PATH_TO_VIEW`, drives navigation with `history.pushState`/`replaceState`, and listens to `popstate`. Page state (`dealData`, `analysisResult`) lives in `AppInner` and is passed down — adding a route means extending the `View` union + `PATH_TO_VIEW` map and rendering the view.
 
 - `pages/` — `LandingPage`, `FormView` (upload → form → submit), `ResultsView` (score/flags/breakdown/scripts, download/save/email), `CompareView`, `AccountPage`.
-- `lib/api.js` — typed wrappers around `/api/*`; all requests go through `fetchJSON`.
-- `lib/auth.jsx` — Supabase auth context (`AuthProvider`/`useAuth`), including password-recovery handling that redirects to `/account`.
-- `lib/reports.js` — saved-report CRUD via Supabase (5-report cap, `MAX_REPORTS`).
-- `lib/imageUtils.js` — client-side image preprocessing (EXIF correction, resize, compression) before upload; server re-processes with Sharp.
-- Analytics (PostHog) and cookie consent are gated: analytics only initializes after consent (`lib/cookieconsent.js` → `lib/analytics.js`).
+- `types.ts` — client-only types (`FormState`, `OcrFields`, `SavedReport`, …) plus re-exports of the `shared/types.d.ts` API contract. App code imports types from here.
+- `lib/api.ts` — typed wrappers around `/api/*`; all requests go through `fetchJSON<T>`.
+- `lib/auth.tsx` — Supabase auth context (`AuthProvider`/`useAuth`), including password-recovery handling that redirects to `/account`.
+- `lib/reports.ts` — saved-report CRUD via Supabase (5-report cap, `MAX_REPORTS`).
+- `lib/imageUtils.ts` — client-side image preprocessing (EXIF correction, resize, compression) before upload; server re-processes with Sharp.
+- Analytics (PostHog) and cookie consent are gated: analytics only initializes after consent (`lib/cookieconsent.ts` → `lib/analytics.ts`).
 
 ### Deployment
 Single Render service defined by `render.yaml`. Build = `npm run build`, start = `npm start`. The same Node process serves the API and the static SPA build in production.

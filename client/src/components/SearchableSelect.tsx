@@ -1,9 +1,20 @@
 import { useState, useRef, useEffect } from 'react';
 
-export default function SearchableSelect({ label, options, value, onChange, placeholder, loading }) {
+type Option = string | { name: string };
+
+interface SearchableSelectProps {
+  label?: string;
+  options: Option[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  loading?: boolean;
+}
+
+export default function SearchableSelect({ label, options, value, onChange, placeholder, loading }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const containerRef = useRef(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const filtered = options.filter(opt => {
     const name = typeof opt === 'string' ? opt : opt.name;
@@ -11,8 +22,8 @@ export default function SearchableSelect({ label, options, value, onChange, plac
   });
 
   useEffect(() => {
-    function handleClickOutside(e) {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
     }

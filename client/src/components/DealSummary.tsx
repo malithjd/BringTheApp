@@ -1,6 +1,8 @@
-import { formatCurrency, formatCurrencyCents, formatPercent } from '../lib/format';
+import type { ReactNode } from 'react';
+import { formatCurrency, formatCurrencyCents } from '../lib/format';
+import type { CalculatedDeal, EnteredDeal } from '../types';
 
-export default function DealSummary({ entered, calculated }) {
+export default function DealSummary({ entered, calculated }: { entered: EnteredDeal; calculated: CalculatedDeal }) {
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden animate-fade-up">
       <div className="p-4 border-b border-border">
@@ -59,7 +61,16 @@ export default function DealSummary({ entered, calculated }) {
   );
 }
 
-function Row({ label, value, hint, bold, highlight, muted }) {
+interface RowProps {
+  label: ReactNode;
+  value: ReactNode;
+  hint?: string | null;
+  bold?: boolean;
+  highlight?: boolean;
+  muted?: boolean;
+}
+
+function Row({ label, value, hint, bold, highlight, muted }: RowProps) {
   return (
     <div className="flex justify-between items-start">
       <div>
