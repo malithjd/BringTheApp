@@ -37,5 +37,9 @@ services:
         sync: false  # set manually in dashboard
       - key: EMAIL_FROM
         sync: false  # verified sender/domain, e.g. "BringTheApp <reports@yourdomain.com>"
+      - key: VITE_POSTHOG_KEY
+        sync: false  # optional analytics — build-time, set in dashboard if used
+      - key: VITE_POSTHOG_HOST
+        value: https://us.i.posthog.com
     healthCheckPath: /api/health
     autoDeploy: true
