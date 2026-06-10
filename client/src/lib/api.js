@@ -1,3 +1,5 @@
+import { supabase } from './supabase';
+
 const API_BASE = '/api';
 
 async function fetchJSON(url, options = {}) {
@@ -103,6 +105,31 @@ export async function generatePdfReport(result) {
     throw new Error(err.error || 'PDF generation failed');
   }
   return res.blob();
+}
+
+/**
+ * Email the deal report PDF to the given address. Requires the user to be
+ * signed in — sends the Supabase access token as a bearer credential.
+ */
+export async function emailReport(result, email) {
+  const { data } = supabase
+    ? await supabase.auth.getSession()
+    : { data: { session: null } };
+  const token = data?.session?.access_token;
+
+  const res = await fetch(`${API_BASE}/pdf/email`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ result, email }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || 'Failed to send report email');
+  }
+  return res.json();
 }
 
 export async function extractDocuments(files) {

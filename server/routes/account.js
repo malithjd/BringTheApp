@@ -1,16 +1,7 @@
 import express from 'express';
-import { createClient } from '@supabase/supabase-js';
+import { adminClient } from '../lib/supabaseAdmin.js';
 
 const router = express.Router();
-
-function adminClient() {
-  const url = process.env.VITE_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  return createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
 
 router.delete('/delete', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
