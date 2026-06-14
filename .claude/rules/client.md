@@ -5,7 +5,7 @@ paths: ["client/**"]
 
 # Client conventions
 
-React 19 + Vite 8 + Tailwind CSS 4 (dark theme, custom tokens). Mobile-first. **Fully TypeScript** (`.tsx`/`.ts`, bundler resolution — extensionless imports). Entry `src/main.tsx` → `src/App.tsx`.
+React 19 + Vite 8 + Tailwind CSS 4 (one premium light theme — warm ivory canvas, white cards, single evidence-yellow accent; custom tokens in `src/index.css`). Mobile-first. **Fully TypeScript** (`.tsx`/`.ts`, bundler resolution — extensionless imports). Entry `src/main.tsx` → `src/App.tsx`.
 
 ## Types
 Shared API-contract types live in `shared/types.d.ts` and are re-exported (alongside client-only types like `FormState`, `OcrFields`, `SavedReport`) from `src/types.ts` — import app types from `../types`, not the shared file directly. No `any`; see `.claude/rules/typescript.md`.

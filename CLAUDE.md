@@ -52,7 +52,7 @@ Reference data is plain JSON in `server/data/` (`vehicle-msrp.json`, `state-fees
 `config.ts` exposes lazy feature flags (`getFeatures()` / `isEnabled()`) gating Auto.dev features (`marketListings`, `vehiclePhotos`, `marketAverage`) behind `PAID_FEATURES`. Read flags lazily inside handlers — do not capture them at import time (dotenv timing).
 
 ### Frontend (`client/src/`)
-React 19 + Vite 8 + Tailwind CSS 4 (via `@tailwindcss/vite`, no separate config file). Dark theme with custom design tokens.
+React 19 + Vite 8 + Tailwind CSS 4 (via `@tailwindcss/vite`, no separate config file). One premium **light** theme — warm ivory canvas, white cards, a single evidence-yellow accent — defined as custom design tokens in `client/src/index.css` (`@theme`). Note: `--color-ink` is a *dark foreground* (text/icons on yellow), not a background; surfaces use `--color-bg`/`--color-surface`. `text-accent` (pure yellow) is remapped to a legible deep gold for text via a rule in `index.css`.
 
 **Routing is hand-rolled, not React Router.** `App.tsx` maps pathnames ↔ view names (`type View`) via `PATH_TO_VIEW`, drives navigation with `history.pushState`/`replaceState`, and listens to `popstate`. Page state (`dealData`, `analysisResult`) lives in `AppInner` and is passed down — adding a route means extending the `View` union + `PATH_TO_VIEW` map and rendering the view.
 

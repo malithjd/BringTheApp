@@ -1,45 +1,54 @@
 @import "tailwindcss";
 
 @theme {
-  /* ── Legacy app-view tokens (FormView / ResultsView) ──────────────── */
-  --color-bg: #111111;
-  --color-surface: #1c1c1c;
-  --color-surface2: #252525;
-  --color-surface3: #2a2a2a;
-  --color-border: #2a2a2a;
-  --color-border-subtle: #1e1e1e;
-  --color-text: #fafaf7;
-  --color-text2: #9e9e8e;
-  --color-accent: #f5c400;
-  --color-accent-hover: #e6b800;
-  --color-accent-muted: #3d2a00;
-  --color-accent-end: #f5c400;
-  --color-green: #27ae60;
-  --color-amber: #e67e22;
-  --color-red: #c0392b;
+  /* ════════════════════════════════════════════════════════════════════
+     ONE PREMIUM LIGHT THEME
+     Warm ivory canvas, white cards, hairline warm borders, near-black
+     warm ink text, a single evidence-yellow accent. No dark surfaces.
+     `--color-ink` stays dark because it is the *foreground* on yellow
+     (button/pill text & deep emphasis), never a page background.
+     ════════════════════════════════════════════════════════════════════ */
 
-  /* ── New brand system ──────────────────────────────────────────────── */
-  /* Ink surfaces */
-  --color-ink: #111111;
-  --color-card-dark: #1c1c1c;
-  --color-card-dark2: #252525;
-  --color-ink-border: #2a2a2a;
-  --color-ink-border-subtle: #1e1e1e;
+  /* ── App-view surface tokens (FormView / ResultsView / components) ──── */
+  --color-bg: #f7f4ee;        /* warm ivory page canvas */
+  --color-surface: #ffffff;   /* cards / panels */
+  --color-surface2: #f3efe6;  /* subtle fill, inputs, tracks */
+  --color-surface3: #ebe6da;  /* deeper subtle / hover fill */
+  --color-border: #e6e0d3;    /* hairline border */
+  --color-border-subtle: #f0ece2;
+  --color-text: #1a1813;      /* near-black warm ink */
+  --color-text2: #6d685d;     /* muted text (≥4.5:1 on white) */
+  --color-accent: #f5c400;    /* evidence yellow — button backgrounds */
+  --color-accent-hover: #e6b800;
+  --color-accent-muted: #fbf2cc; /* light gold tint surface */
+  --color-accent-end: #f5c400;
+  --color-green: #1f9551;
+  --color-amber: #c96a16;
+  --color-red: #b5352a;
+
+  /* ── Brand tokens ──────────────────────────────────────────────────── */
+  /* `ink` = dark foreground used on yellow / for deep emphasis */
+  --color-ink: #181612;
+  --color-card-dark: #ffffff;     /* repurposed → white card */
+  --color-card-dark2: #f3efe6;    /* repurposed → subtle fill */
+  --color-ink-border: #e6e0d3;    /* repurposed → light hairline */
+  --color-ink-border-subtle: #f0ece2;
 
   /* Light surfaces */
-  --color-warm-white: #fafaf7;
+  --color-warm-white: #1a1813;    /* repurposed → primary ink text */
   --color-warm-card: #ffffff;
-  --color-warm-border: #e8e4d8;
+  --color-warm-border: #e6e0d3;
 
   /* Text */
-  --color-steel: #6b6b63;
-  --color-muted-text: #9e9e8e;
+  --color-steel: #6d685d;
+  --color-muted-text: #8c8678;
 
   /* Evidence Yellow */
   --color-yellow: #f5c400;
   --color-yellow-hover: #e6b800;
-  --color-yellow-text: #b8920a;
-  --color-yellow-dark: #3d2a00;
+  --color-yellow-text: #8a6d07;       /* legible deep gold on light (links/labels) */
+  --color-yellow-text-hover: #6f5705;
+  --color-yellow-dark: #fbf2cc;
 
   /* Semantic — critical */
   --color-critical: #c0392b;
@@ -83,11 +92,18 @@
 
 html {
   font-family: 'Sora', system-ui, sans-serif;
-  background-color: var(--color-ink);
-  color: var(--color-warm-white);
+  background-color: var(--color-bg);
+  color: var(--color-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Accent used as TEXT must be the legible deep gold on light surfaces.
+   (Plain rule outside @layer beats Tailwind's generated utilities.) */
+.text-accent { color: var(--color-yellow-text); }
+.text-accent-hover { color: var(--color-yellow-text-hover); }
+.hover\:text-accent:hover { color: var(--color-yellow-text); }
+.hover\:text-accent-hover:hover { color: var(--color-yellow-text-hover); }
 
 body {
   margin: 0;
@@ -128,7 +144,7 @@ input[type="number"] {
   inset: 0;
   pointer-events: none;
   z-index: 9999;
-  opacity: 0.015;
+  opacity: 0.022;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height%3D'100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
@@ -208,13 +224,11 @@ input[type="number"] {
   .hero-stat-num { animation: none !important; opacity: 1 !important; transform: none !important; }
 }
 
-/* ── Hero section — ambient warmth behind headline ─────────────────── */
+/* ── Hero section — soft warm light wash behind headline ───────────── */
 .hero-section {
-  background-image: radial-gradient(
-    ellipse 75% 55% at 18% 38%,
-    oklch(16.5% 0.018 85) 0%,
-    transparent 72%
-  );
+  background-image:
+    radial-gradient(ellipse 70% 60% at 12% 18%, rgba(245, 196, 0, 0.10) 0%, transparent 60%),
+    radial-gradient(ellipse 90% 70% at 95% 8%, rgba(245, 196, 0, 0.06) 0%, transparent 55%);
 }
 
 /* ── Hero headline proof numbers — deep gold evidence tone ──────────── */
@@ -272,10 +286,11 @@ input[type="number"] {
   align-items: center;
   gap: 12px;
   max-width: 44rem;
-  padding: 14px 20px;
-  border-radius: 8px;
-  border: 1px solid var(--color-ink-border);
-  background: var(--color-card-dark);
+  padding: 16px 22px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: 0 1px 2px rgba(24, 22, 18, 0.04), 0 8px 24px rgba(24, 22, 18, 0.05);
 }
 .privacy-bar__lock {
   width: 32px;
@@ -291,6 +306,31 @@ input[type="number"] {
 .privacy-bar__title { color: var(--color-warm-white); font-weight: 600; font-size: 13px; line-height: 1.4; }
 .privacy-bar__detail { color: var(--color-steel); font-size: 12px; line-height: 1.5; margin-top: 2px; }
 
+/* ── Card lift — premium hover feedback on resting surfaces ─────────── */
+.lift-card {
+  transition: transform 280ms var(--ease-out-quint),
+              box-shadow 280ms var(--ease-out-quint),
+              border-color 280ms var(--ease-out-quint);
+}
+.lift-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 44px rgba(24, 22, 18, 0.10), 0 4px 12px rgba(24, 22, 18, 0.05);
+  border-color: color-mix(in srgb, var(--color-yellow) 45%, var(--color-border));
+}
+@media (prefers-reduced-motion: reduce) {
+  .lift-card:hover { transform: none; }
+}
+
+/* ── Link underline grow ───────────────────────────────────────────── */
+.link-underline {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-size: 0% 1.5px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  transition: background-size 240ms var(--ease-out-quint);
+}
+.link-underline:hover { background-size: 100% 1.5px; }
+
 /* ── Primary button press feedback ─────────────────────────────────── */
 .btn-primary {
   cursor: pointer;
@@ -304,7 +344,7 @@ input[type="number"] {
 button:focus-visible,
 a:focus-visible,
 [role="tab"]:focus-visible {
-  outline: 2px solid var(--color-yellow);
+  outline: 2px solid var(--color-ink);
   outline-offset: 3px;
   border-radius: 4px;
 }
@@ -321,23 +361,24 @@ a:focus-visible,
 
 /* ── Cookie consent — new brand theme ──────────────────────────────── */
 #cc-main {
-  --cc-bg: #1c1c1c;
-  --cc-primary-color: #fafaf7;
-  --cc-secondary-color: #9e9e8e;
+  --cc-bg: #ffffff;
+  --cc-primary-color: #1a1813;
+  --cc-secondary-color: #6d685d;
   --cc-btn-primary-bg: #f5c400;
-  --cc-btn-primary-color: #111111;
+  --cc-btn-primary-color: #181612;
   --cc-btn-primary-hover-bg: #e6b800;
-  --cc-btn-secondary-bg: #252525;
-  --cc-btn-secondary-color: #fafaf7;
-  --cc-btn-secondary-hover-bg: #2a2a2a;
-  --cc-separator-border-color: #2a2a2a;
-  --cc-cookie-category-block-bg: #111111;
-  --cc-cookie-category-block-border: #2a2a2a;
-  --cc-overlay-bg: rgba(17, 17, 17, 0.8);
+  --cc-btn-secondary-bg: #f3efe6;
+  --cc-btn-secondary-color: #1a1813;
+  --cc-btn-secondary-hover-bg: #ebe6da;
+  --cc-separator-border-color: #e6e0d3;
+  --cc-cookie-category-block-bg: #f7f4ee;
+  --cc-cookie-category-block-border: #e6e0d3;
+  --cc-overlay-bg: rgba(24, 22, 18, 0.45);
   --cc-toggle-on-bg: #f5c400;
-  --cc-toggle-off-bg: #2a2a2a;
-  --cc-toggle-readonly-bg: #27ae60;
+  --cc-toggle-off-bg: #d8d2c4;
+  --cc-toggle-readonly-bg: #1f9551;
   font-family: 'Sora', system-ui, sans-serif;
+  box-shadow: 0 12px 48px rgba(24, 22, 18, 0.16) !important;
 }
 
 /* ── Reduced motion ─────────────────────────────────────────────────── */

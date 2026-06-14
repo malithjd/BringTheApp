@@ -129,10 +129,10 @@ function AppInner() {
   const isAccount = view === 'account';
 
   return (
-    <div className="min-h-dvh bg-ink grain">
+    <div className="min-h-dvh bg-bg grain">
       {/* Header */}
       <header
-        className="header-safe border-b border-ink-border px-4 sm:px-6 sticky top-0 bg-ink/95 backdrop-blur-sm flex items-end"
+        className="header-safe border-b border-border px-4 sm:px-6 sticky top-0 bg-bg/80 backdrop-blur-md flex items-end"
         style={{ zIndex: 'var(--z-sticky)', minHeight: '64px' }}
       >
         <div className="max-w-[1280px] mx-auto w-full flex items-center justify-between h-16">
