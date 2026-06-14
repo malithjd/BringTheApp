@@ -79,7 +79,7 @@ function ScrollStat({ to, prefix = '', suffix = '', label }: { to: number; prefi
   const [ref, inView] = useInView(0.4);
   return (
     <div ref={ref} className="text-center">
-      <p className="font-display text-[clamp(36px,4vw,52px)] leading-none tracking-tight text-warm-white tabular-nums mb-2">
+      <p className="font-display text-[clamp(36px,4vw,52px)] leading-none tracking-tight text-ink tabular-nums mb-2">
         <CountUp to={to} prefix={prefix} suffix={suffix} active={inView} />
       </p>
       <p className="text-steel text-xs leading-relaxed max-w-[160px] mx-auto">{label}</p>
@@ -301,7 +301,7 @@ export default function LandingPage({ onGetStarted }: { onGetStarted: () => void
   }, []);
 
   return (
-    <div className="bg-ink overflow-x-hidden">
+    <div className="bg-bg overflow-x-hidden">
 
       {/* ═══ 1. HERO ═══════════════════════════════════════════════════
           Goal: one claim, one action. Nothing else competes.         */}
@@ -311,11 +311,11 @@ export default function LandingPage({ onGetStarted }: { onGetStarted: () => void
 
             <div className="inline-flex items-center gap-2 border border-ink-border rounded-full px-3 py-1 mb-8">
               <span className="w-1.5 h-1.5 rounded-full bg-yellow hero-badge-dot" />
-              <span className="text-warm-white text-xs font-medium tracking-wide">Free car deal analyzer</span>
+              <span className="text-ink text-xs font-medium tracking-wide">Free car deal analyzer</span>
             </div>
 
             <h1
-              className="font-display text-[clamp(38px,5vw,62px)] leading-[1.05] tracking-tight text-warm-white mb-5"
+              className="font-display text-[clamp(38px,5vw,62px)] leading-[1.05] tracking-tight text-ink mb-5"
               style={{ textWrap: 'balance' }}
             >
               <span className="hero-num">87%</span> of car buyers pay{' '}
@@ -337,9 +337,48 @@ export default function LandingPage({ onGetStarted }: { onGetStarted: () => void
         </div>
       </section>
 
-      {/* ═══ 2. THREE CRIMES ═══════════════════════════════════════════
+      {/* ═══ 2. THE SCORE ══════════════════════════════════════════════
+          Brought directly below the hero: the single output, up front.
+          Ring animates in on scroll.                                   */}
+      <section className="relative px-6 py-20 md:py-28 border-t border-border">
+        <div className="max-w-[1280px] mx-auto">
+
+          <Reveal className="mb-14">
+            <p className="text-yellow-text text-[11px] font-bold uppercase tracking-widest mb-3">The output</p>
+            <h2 className="font-display text-[clamp(28px,3.5vw,44px)] leading-tight tracking-tight text-ink max-w-md">
+              One number. Every problem surfaced.
+            </h2>
+            <p className="text-steel text-base leading-relaxed max-w-md mt-4">
+              Upload your paperwork and get a single 0–100 score — every fee, rate, and add-on checked and explained.
+            </p>
+          </Reveal>
+
+          <div className="grid md:grid-cols-2 gap-12 md:gap-20 items-center">
+
+            {/* Phone carousel */}
+            <Reveal delay={80} className="flex justify-center">
+              <PhoneCarousel />
+            </Reveal>
+
+            {/* 3 factor callouts */}
+            <div className="space-y-4">
+              {[
+                { num: 6, suffix: ' factors', label: 'Price vs market, APR, fees, add-ons, loan term, and down payment — all weighted and scored.' },
+                { num: 47, suffix: '+ checks', label: 'Every line item verified against state law and live market data from actual listings near you.' },
+                { num: 60, suffix: 's', label: 'From upload to a complete scored report. No waiting, no email — instant in the browser.' },
+              ].map(({ num, suffix, label }, i) => (
+                <Reveal key={i} delay={i * 90}>
+                  <FactorRow to={num} suffix={suffix} label={label} />
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ 3. THREE CRIMES ═══════════════════════════════════════════
           Goal: make the threat feel real, one fact per card.         */}
-      <section className="bg-warm-white px-6 py-20 md:py-28">
+      <section className="bg-bg px-6 py-20 md:py-28">
         <div className="max-w-[1280px] mx-auto">
 
           {/* Intro row — text left, Alex right (multiply removes white bg) */}
@@ -387,8 +426,8 @@ export default function LandingPage({ onGetStarted }: { onGetStarted: () => void
             {CRIMES.map(({ badge, stat, cap, title, body, accent }, i) => (
               <Reveal key={badge} delay={i * 110}>
                 <div
-                  className="rounded-xl border border-warm-border bg-warm-card p-7 flex flex-col h-full"
-                  style={{ boxShadow: '0 4px 16px rgba(17,17,17,0.06)' }}
+                  className="lift-card rounded-xl border border-warm-border bg-warm-card p-7 flex flex-col h-full"
+                  style={{ boxShadow: '0 4px 16px rgba(24,22,18,0.05)' }}
                 >
                   <span
                     className="self-start text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full border mb-6"
@@ -407,44 +446,9 @@ export default function LandingPage({ onGetStarted }: { onGetStarted: () => void
         </div>
       </section>
 
-      {/* ═══ 3. THE SCORE ══════════════════════════════════════════════
-          Goal: show the single output. Ring animates in on scroll.   */}
-      <section className="px-6 py-20 md:py-28">
-        <div className="max-w-[1280px] mx-auto">
-
-          <Reveal className="mb-14">
-            <p className="text-yellow-text text-[11px] font-bold uppercase tracking-widest mb-3">The output</p>
-            <h2 className="font-display text-[clamp(28px,3.5vw,44px)] leading-tight tracking-tight text-warm-white max-w-md">
-              One number. Every problem surfaced.
-            </h2>
-          </Reveal>
-
-          <div className="grid md:grid-cols-2 gap-12 md:gap-20 items-center">
-
-            {/* Phone carousel */}
-            <Reveal delay={80} className="flex justify-center">
-              <PhoneCarousel />
-            </Reveal>
-
-            {/* 3 factor callouts */}
-            <div className="space-y-4">
-              {[
-                { num: 6, suffix: ' factors', label: 'Price vs market, APR, fees, add-ons, loan term, and down payment — all weighted and scored.' },
-                { num: 47, suffix: '+ checks', label: 'Every line item verified against state law and live market data from actual listings near you.' },
-                { num: 60, suffix: 's', label: 'From upload to a complete scored report. No waiting, no email — instant in the browser.' },
-              ].map(({ num, suffix, label }, i) => (
-                <Reveal key={i} delay={i * 90}>
-                  <FactorRow to={num} suffix={suffix} label={label} />
-                </Reveal>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ═══ 4. FLAG CARDS ════════════════════════════════════════════
           Goal: show the result format. Three cards, staggered reveal. */}
-      <section className="bg-warm-white px-6 py-20 md:py-28">
+      <section className="bg-bg px-6 py-20 md:py-28">
         <div className="max-w-[1280px] mx-auto">
 
           <Reveal className="mb-14">
@@ -487,7 +491,7 @@ export default function LandingPage({ onGetStarted }: { onGetStarted: () => void
         <div className="max-w-[1280px] mx-auto">
 
           <Reveal className="mb-16">
-            <h2 className="font-display text-[clamp(30px,4vw,48px)] leading-tight tracking-tight text-warm-white">
+            <h2 className="font-display text-[clamp(30px,4vw,48px)] leading-tight tracking-tight text-ink">
               Three steps.<br />Sixty seconds.
             </h2>
           </Reveal>
@@ -495,11 +499,11 @@ export default function LandingPage({ onGetStarted }: { onGetStarted: () => void
           <div className="grid md:grid-cols-3 gap-5">
             {STEPS.map(({ num, title, body, icon }, i) => (
               <Reveal key={num} delay={i * 110}>
-                <div className="relative rounded-xl bg-card-dark border border-ink-border p-7 overflow-hidden h-full">
+                <div className="lift-card relative rounded-xl bg-card-dark border border-ink-border p-7 overflow-hidden h-full" style={{ boxShadow: '0 2px 10px rgba(24,22,18,0.04)' }}>
                   {/* Background step number */}
                   <span
                     className="absolute -top-6 -right-3 font-display text-[120px] leading-none select-none tabular-nums pointer-events-none"
-                    style={{ color: 'rgba(250,250,247,0.03)' }}
+                    style={{ color: 'rgba(24,22,18,0.045)' }}
                     aria-hidden="true"
                   >
                     {num}
@@ -508,7 +512,7 @@ export default function LandingPage({ onGetStarted }: { onGetStarted: () => void
                     {icon}
                   </div>
                   <p className="text-yellow-text text-[10px] font-bold uppercase tracking-widest mb-3">{num}</p>
-                  <h3 className="text-warm-white font-semibold text-[15px] mb-2">{title}</h3>
+                  <h3 className="text-ink font-semibold text-[15px] mb-2">{title}</h3>
                   <p className="text-steel text-sm leading-relaxed">{body}</p>
                 </div>
               </Reveal>
@@ -519,7 +523,7 @@ export default function LandingPage({ onGetStarted }: { onGetStarted: () => void
 
       {/* ═══ 6. CAPABILITIES DECK ════════════════════════════════════
           Goal: 6 features as a swipeable stacked card deck.        */}
-      <section className="bg-warm-white px-6 py-20 md:py-24 overflow-hidden">
+      <section className="bg-bg px-6 py-20 md:py-24 overflow-hidden">
         <div className="max-w-[1280px] mx-auto">
           <CapabilitySection />
         </div>
@@ -550,7 +554,7 @@ export default function LandingPage({ onGetStarted }: { onGetStarted: () => void
       <section className="px-6 py-24 md:py-32 text-center">
         <div className="max-w-[560px] mx-auto">
           <Reveal>
-            <h2 className="font-display text-[clamp(32px,5vw,56px)] leading-tight tracking-tight text-warm-white mb-4">
+            <h2 className="font-display text-[clamp(32px,5vw,56px)] leading-tight tracking-tight text-ink mb-4">
               Don't sign until you run it.
             </h2>
             <p className="text-steel text-base mb-2">3 free checks. No card required.</p>
@@ -579,7 +583,7 @@ export default function LandingPage({ onGetStarted }: { onGetStarted: () => void
           </span>
           <button
             onClick={onGetStarted}
-            className="btn-primary bg-ink hover:bg-card-dark text-yellow font-semibold rounded-lg px-4 py-2 text-sm flex items-center gap-1.5"
+            className="btn-primary bg-ink hover:opacity-90 text-yellow font-semibold rounded-lg px-4 py-2 text-sm flex items-center gap-1.5"
           >
             Check my deal
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
@@ -875,7 +879,7 @@ function HeroStats() {
         { to: 60, prefix: '', suffix: 's', label: 'to a full scored report' },
       ].map(({ to, prefix, suffix, label }, i) => (
         <div key={i}>
-          <p className="font-display text-2xl text-warm-white font-semibold tabular-nums">
+          <p className="font-display text-2xl text-ink font-semibold tabular-nums">
             <CountUp to={to} prefix={prefix} suffix={suffix} active={inView} duration={1600} />
           </p>
           <p className="text-steel text-xs mt-1 max-w-[150px] leading-relaxed">{label}</p>
@@ -913,7 +917,7 @@ const SERIF = { fontFamily: 'DM Serif Display, Georgia, serif' };
 function PhoneHeader({ right }: { right: ReactNode }) {
   return (
     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 16px 8px' }}>
-      <span style={{ ...SERIF, fontSize:13, color:'#FAFAF7' }}>
+      <span style={{ ...SERIF, fontSize:13, color:'#1A1813' }}>
         BringTheApp<span style={{ color:'#F5C400' }}>.</span>
       </span>
       {right}
@@ -949,7 +953,7 @@ function PhoneScreenScore({ sectionInView }: { sectionInView: boolean }) {
         {/* Ring */}
         <svg width="148" height="148" viewBox="-14 -14 128 128" overflow="visible" role="img" aria-label="Deal score 82 out of 100">
           <title>Deal score: 82 out of 100</title>
-          <circle cx="50" cy="50" r={radius} fill="none" stroke="#252525" strokeWidth="9" strokeLinecap="round"/>
+          <circle cx="50" cy="50" r={radius} fill="none" stroke="#ECE7DB" strokeWidth="9" strokeLinecap="round"/>
           <circle cx="50" cy="50" r={radius} fill="none"
             stroke="var(--color-success)" strokeWidth="9" strokeLinecap="round"
             strokeDasharray={circ}
@@ -966,11 +970,11 @@ function PhoneScreenScore({ sectionInView }: { sectionInView: boolean }) {
           <span style={{ ...SORA, fontSize:10, fontWeight:600, color:'var(--color-success-text)' }}>Looks Clean</span>
         </div>
         {/* Stats */}
-        <div style={{ width:'100%', borderTop:'1px solid #2A2A2A', paddingTop:10, display:'grid', gridTemplateColumns:'1fr 1fr 1fr', textAlign:'center', marginBottom:8 }}>
+        <div style={{ width:'100%', borderTop:'1px solid #E6E0D3', paddingTop:10, display:'grid', gridTemplateColumns:'1fr 1fr 1fr', textAlign:'center', marginBottom:8 }}>
           {[['Price','$32,000'],['APR','5.9%'],['Term','60 mo']].map(([k,v]) => (
             <div key={k}>
               <div style={{ ...SORA, fontSize:8, color:'#9E9E8E', marginBottom:2 }}>{k}</div>
-              <div style={{ ...SORA, fontSize:11, fontWeight:600, color:'#FAFAF7', fontVariantNumeric:'tabular-nums' }}>{v}</div>
+              <div style={{ ...SORA, fontSize:11, fontWeight:600, color:'#1A1813', fontVariantNumeric:'tabular-nums' }}>{v}</div>
             </div>
           ))}
         </div>
@@ -1016,7 +1020,7 @@ function PhoneScreenScripts() {
       <PhoneHeader right={<span style={{ ...SORA, fontSize:8, fontWeight:500, color:'#9E9E8E', letterSpacing:'0.08em', textTransform:'uppercase' }}>Scripts</span>} />
       <div style={{ flex:1, padding:'2px 12px 12px', display:'flex', flexDirection:'column', gap:8, overflowY:'auto' }}>
         {scripts.map(({ issue, tag, script }) => (
-          <div key={issue} style={{ background:'#1C1C1C', border:'1px solid #2A2A2A', borderRadius:8, padding:'10px 10px 8px' }}>
+          <div key={issue} style={{ background:'#FFFFFF', border:'1px solid #E6E0D3', borderRadius:8, padding:'10px 10px 8px' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:5 }}>
               <p style={{ ...SORA, fontSize:8, fontWeight:700, color:'#B8920A', textTransform:'uppercase', letterSpacing:'0.08em', margin:0, lineHeight:1.3, flex:1 }}>{issue}</p>
               <span style={{ ...SORA, fontSize:7, color:'#6B6B63', marginLeft:6, flexShrink:0, lineHeight:1.3 }}>{tag}</span>
@@ -1037,7 +1041,7 @@ function PhoneScreenMarket() {
   const bars = [
     { label:'Fair Value',   price:'$30,200', pct:38, color:'var(--color-success)' },
     { label:'Market Avg',   price:'$31,450', pct:56, color:'var(--color-warning)' },
-    { label:'Your offer',   price:'$32,000', pct:72, color:'#FAFAF7' },
+    { label:'Your offer',   price:'$32,000', pct:72, color:'#1A1813' },
   ];
   return (
     <div aria-label="Market Check" style={{ flexShrink:0, width:'100%', height:'100%', paddingTop:44, display:'flex', flexDirection:'column', overflow:'hidden' }}>
@@ -1047,7 +1051,7 @@ function PhoneScreenMarket() {
         <div style={{ marginBottom:20 }}>
           <p style={{ ...SORA, fontSize:8, color:'#9E9E8E', margin:'0 0 4px' }}>Your offer</p>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-            <p style={{ ...SERIF, fontSize:28, color:'#FAFAF7', fontVariantNumeric:'tabular-nums', margin:0 }}>$32,000</p>
+            <p style={{ ...SERIF, fontSize:28, color:'#1A1813', fontVariantNumeric:'tabular-nums', margin:0 }}>$32,000</p>
             <span style={{ ...SORA, fontSize:9, fontWeight:600, color:'var(--color-success-text)', background:'var(--color-success-bg)', padding:'3px 8px', borderRadius:9999 }}>Within range</span>
           </div>
         </div>
@@ -1057,16 +1061,16 @@ function PhoneScreenMarket() {
             <div key={label}>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
                 <span style={{ ...SORA, fontSize:9, color:'#6B6B63' }}>{label}</span>
-                <span style={{ ...SORA, fontSize:10, fontWeight:600, color:'#FAFAF7', fontVariantNumeric:'tabular-nums' }}>{price}</span>
+                <span style={{ ...SORA, fontSize:10, fontWeight:600, color:'#1A1813', fontVariantNumeric:'tabular-nums' }}>{price}</span>
               </div>
-              <div style={{ position:'relative', height:6, background:'#252525', borderRadius:3 }}>
+              <div style={{ position:'relative', height:6, background:'#ECE7DB', borderRadius:3 }}>
                 <div style={{ position:'absolute', left:0, top:0, height:'100%', width:`${pct}%`, background:color, borderRadius:3, opacity:0.85 }}/>
-                <div style={{ position:'absolute', top:'50%', transform:'translateY(-50%)', left:`calc(${pct}% - 5px)`, width:10, height:10, borderRadius:'50%', background:color, border:'2px solid #111111' }}/>
+                <div style={{ position:'absolute', top:'50%', transform:'translateY(-50%)', left:`calc(${pct}% - 5px)`, width:10, height:10, borderRadius:'50%', background:color, border:'2px solid #FBFAF7' }}/>
               </div>
             </div>
           ))}
         </div>
-        <p style={{ ...SORA, fontSize:8, color:'#6B6B63', lineHeight:1.4, borderTop:'1px solid #2A2A2A', paddingTop:10, marginTop:14 }}>
+        <p style={{ ...SORA, fontSize:8, color:'#6B6B63', lineHeight:1.4, borderTop:'1px solid #E6E0D3', paddingTop:10, marginTop:14 }}>
           Based on 47 active listings · 50 mi radius · Updated daily
         </p>
       </div>
@@ -1126,7 +1130,7 @@ function PhoneCarousel() {
 
         {/* Prev */}
         <button onClick={prev} aria-label="Previous screen"
-          className="hidden md:flex w-10 h-10 rounded-full border border-ink-border items-center justify-center text-steel hover:text-warm-white hover:border-card-dark2 transition-colors cursor-pointer flex-shrink-0">
+          className="hidden md:flex w-10 h-10 rounded-full border border-ink-border items-center justify-center text-steel hover:text-ink hover:border-ink transition-colors cursor-pointer flex-shrink-0">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
         </button>
 
@@ -1158,21 +1162,21 @@ function PhoneCarousel() {
           <div aria-hidden="true" style={{ position:'absolute', right:-3, top:156, width:3, height:70, background:'#1A1A1A', borderRadius:'0 2px 2px 0', boxShadow:'inset -1px 0 0 rgba(255,255,255,0.06)' }}/>
 
           {/* Screen area */}
-          <div className="absolute overflow-hidden" style={{ inset:10, borderRadius:44, background:'#111111' }}>
+          <div className="absolute overflow-hidden" style={{ inset:10, borderRadius:44, background:'#FBFAF7' }}>
 
             {/* Dynamic island */}
             <div aria-hidden="true" style={{ position:'absolute', top:12, left:'50%', transform:'translateX(-50%)', width:90, height:26, background:'#000', borderRadius:14, zIndex:20 }}/>
 
             {/* Status bar */}
             <div aria-hidden="true" style={{ position:'absolute', top:0, left:0, right:0, height:44, display:'flex', alignItems:'flex-end', justifyContent:'space-between', padding:'0 18px 7px', zIndex:15, pointerEvents:'none' }}>
-              <span style={{ ...SORA, fontSize:11, fontWeight:600, color:'#FAFAF7' }}>9:41</span>
+              <span style={{ ...SORA, fontSize:11, fontWeight:600, color:'#1A1813' }}>9:41</span>
               <div style={{ display:'flex', alignItems:'center', gap:5 }}>
                 {/* Signal */}
-                <svg width="15" height="11" viewBox="0 0 15 11" fill="none"><rect x="0" y="8" width="2.2" height="3" rx="0.5" fill="#FAFAF7" opacity="0.35"/><rect x="3.2" y="5.5" width="2.2" height="5.5" rx="0.5" fill="#FAFAF7" opacity="0.55"/><rect x="6.4" y="3" width="2.2" height="8" rx="0.5" fill="#FAFAF7" opacity="0.75"/><rect x="9.6" y="0" width="2.2" height="11" rx="0.5" fill="#FAFAF7"/><rect x="12.8" y="0" width="2.2" height="11" rx="0.5" fill="#FAFAF7" opacity="0.25"/></svg>
+                <svg width="15" height="11" viewBox="0 0 15 11" fill="none"><rect x="0" y="8" width="2.2" height="3" rx="0.5" fill="#1A1813" opacity="0.35"/><rect x="3.2" y="5.5" width="2.2" height="5.5" rx="0.5" fill="#1A1813" opacity="0.55"/><rect x="6.4" y="3" width="2.2" height="8" rx="0.5" fill="#1A1813" opacity="0.75"/><rect x="9.6" y="0" width="2.2" height="11" rx="0.5" fill="#1A1813"/><rect x="12.8" y="0" width="2.2" height="11" rx="0.5" fill="#1A1813" opacity="0.25"/></svg>
                 {/* WiFi */}
-                <svg width="14" height="11" viewBox="0 0 14 11"><circle cx="7" cy="10" r="1.3" fill="#FAFAF7"/><path d="M4.2 7.3A4 4 0 019.8 7.3" stroke="#FAFAF7" strokeWidth="1.2" strokeLinecap="round" opacity="0.65"/><path d="M1.8 5A7 7 0 0112.2 5" stroke="#FAFAF7" strokeWidth="1.2" strokeLinecap="round" opacity="0.35"/></svg>
+                <svg width="14" height="11" viewBox="0 0 14 11"><circle cx="7" cy="10" r="1.3" fill="#1A1813"/><path d="M4.2 7.3A4 4 0 019.8 7.3" stroke="#1A1813" strokeWidth="1.2" strokeLinecap="round" opacity="0.65"/><path d="M1.8 5A7 7 0 0112.2 5" stroke="#1A1813" strokeWidth="1.2" strokeLinecap="round" opacity="0.35"/></svg>
                 {/* Battery */}
-                <svg width="23" height="12" viewBox="0 0 23 12" fill="none"><rect x="0.5" y="0.5" width="18" height="11" rx="2.5" stroke="#FAFAF7" strokeOpacity="0.4" strokeWidth="1"/><rect x="1.5" y="1.5" width="15" height="9" rx="1.5" fill="#FAFAF7" opacity="0.9"/><path d="M19.5 4v4c1-.4 2-1.1 2-2s-1-1.6-2-2z" fill="#FAFAF7" opacity="0.4"/></svg>
+                <svg width="23" height="12" viewBox="0 0 23 12" fill="none"><rect x="0.5" y="0.5" width="18" height="11" rx="2.5" stroke="#1A1813" strokeOpacity="0.4" strokeWidth="1"/><rect x="1.5" y="1.5" width="15" height="9" rx="1.5" fill="#1A1813" opacity="0.9"/><path d="M19.5 4v4c1-.4 2-1.1 2-2s-1-1.6-2-2z" fill="#1A1813" opacity="0.4"/></svg>
               </div>
             </div>
 
@@ -1197,13 +1201,13 @@ function PhoneCarousel() {
             </div>
 
             {/* Home indicator */}
-            <div aria-hidden="true" style={{ position:'absolute', bottom:8, left:'50%', transform:'translateX(-50%)', width:100, height:4, background:'rgba(250,250,247,0.22)', borderRadius:2, zIndex:15 }}/>
+            <div aria-hidden="true" style={{ position:'absolute', bottom:8, left:'50%', transform:'translateX(-50%)', width:100, height:4, background:'rgba(24,22,18,0.20)', borderRadius:2, zIndex:15 }}/>
           </div>
         </div>
 
         {/* Next */}
         <button onClick={next} aria-label="Next screen"
-          className="hidden md:flex w-10 h-10 rounded-full border border-ink-border items-center justify-center text-steel hover:text-warm-white hover:border-card-dark2 transition-colors cursor-pointer flex-shrink-0">
+          className="hidden md:flex w-10 h-10 rounded-full border border-ink-border items-center justify-center text-steel hover:text-ink hover:border-ink transition-colors cursor-pointer flex-shrink-0">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
         </button>
       </div>
